@@ -36,6 +36,15 @@ export const DEFAULT_SETTINGS: TeamSettings = {
   stoppageIncrementsMs: [30_000, 60_000, 120_000],
 }
 
+/**
+ * How many stoppage chips the live clock will show.
+ *
+ * Three is what fits across the phone at a size a thumb can hit. Teams created
+ * before this cap, or restored from an older backup, may carry more; the live
+ * screen shows the first three and settings lets them be turned off.
+ */
+export const MAX_STOPPAGE_CHIPS = 3
+
 export const TEAM_COLORS = [
   '#1B6B3A',
   '#2557B8',

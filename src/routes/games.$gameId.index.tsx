@@ -9,6 +9,7 @@ import {
   useUndoLastEvent,
   useUpdateGame,
 } from '~/db/queries'
+import { MAX_STOPPAGE_CHIPS } from '~/db/schema'
 import { breakLabel, deriveClock, nextPeriod, periodLabel } from '~/engine/clock'
 import { derivePlaytime, deriveScore } from '~/engine/playtime'
 import {
@@ -233,45 +234,34 @@ function LiveGame() {
             </button>
           )}
 
-          {clock.phase === 'running' || clock.phase === 'paused' ? (
-            <button
-              type="button"
-              aria-label={`Add ${formatClock(settings.stoppageIncrementsMs[0] ?? 30_000)} of stoppage time`}
-              onClick={() =>
-                appendEvent.mutate({
-                  type: 'stoppage_added',
-                  period: clock.period,
-                  ms: settings.stoppageIncrementsMs[0] ?? 30_000,
-                })
-              }
-              className="press cond tnum flex h-14 w-[74px] items-center justify-center rounded-2xl bg-white/12 text-[21px] font-bold"
-            >
-              +{stoppageLabel(settings.stoppageIncrementsMs[0] ?? 30_000)}
-            </button>
-          ) : null}
-
+          {/*
+            The opponent's goal button sits beside the clock control and gets
+            room to be read at a glance. Stoppage time lives on its own row
+            below, because adding it is a considered act and scoring against
+            you is not.
+          */}
           <button
             type="button"
             aria-label="Add a goal for the other team"
             onClick={() => appendEvent.mutate({ type: 'goal_them' })}
-            className="press flex h-14 w-[74px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-white/12 text-salmon"
+            className="press flex h-14 w-[118px] items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-salmon"
           >
             <PlusIcon size={18} />
-            <span className="text-[12px] font-bold">Them</span>
+            <span className="text-[16px] font-bold">Them</span>
           </button>
         </div>
 
-        {settings.stoppageIncrementsMs.length > 1 &&
-        (clock.phase === 'running' || clock.phase === 'paused') ? (
+        {clock.phase === 'running' || clock.phase === 'paused' ? (
           <div className="flex gap-2">
-            {settings.stoppageIncrementsMs.slice(1).map((ms) => (
+            {settings.stoppageIncrementsMs.slice(0, MAX_STOPPAGE_CHIPS).map((ms) => (
               <button
                 key={ms}
                 type="button"
+                aria-label={`Add ${formatClock(ms)} of stoppage time`}
                 onClick={() =>
                   appendEvent.mutate({ type: 'stoppage_added', period: clock.period, ms })
                 }
-                className="press cond tnum flex h-11 flex-1 items-center justify-center rounded-xl bg-white/8 text-[17px] font-bold text-slate"
+                className="press cond tnum flex h-12 flex-1 items-center justify-center rounded-xl bg-white/12 text-[19px] font-bold"
               >
                 +{stoppageLabel(ms)}
               </button>

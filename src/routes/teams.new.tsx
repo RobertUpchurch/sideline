@@ -129,7 +129,6 @@ function NewTeam() {
                 {(field) => (
                   <Stepper
                     label="Periods"
-                    hint="Two halves, or four quarters."
                     value={field.state.value}
                     min={1}
                     max={6}
@@ -153,7 +152,6 @@ function NewTeam() {
                 {(field) => (
                   <Stepper
                     label="Players on the field"
-                    hint="Your team only, keepers included if you use one."
                     value={field.state.value}
                     min={1}
                     max={11}

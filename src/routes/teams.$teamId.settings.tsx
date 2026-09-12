@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { teamQuery, useDeleteTeam, useUpdateTeam } from '~/db/queries'
-import { TEAM_COLORS } from '~/db/schema'
+import { MAX_STOPPAGE_CHIPS, TEAM_COLORS } from '~/db/schema'
 import { backupFilename, exportTeam, offerFile } from '~/lib/transfer'
 import {
   Button,
@@ -40,12 +40,16 @@ function Settings() {
 
   const toggleStoppage = (ms: number) => {
     const current = team.settings.stoppageIncrementsMs
-    const next = current.includes(ms)
-      ? current.filter((value) => value !== ms)
-      : [...current, ms].sort((a, b) => a - b)
-    // At least one chip, otherwise the live screen loses its stoppage control.
-    if (next.length === 0) return
-    patchSettings({ stoppageIncrementsMs: next })
+    if (current.includes(ms)) {
+      // At least one, otherwise the live screen loses its stoppage control.
+      if (current.length === 1) return
+      patchSettings({ stoppageIncrementsMs: current.filter((value) => value !== ms) })
+      return
+    }
+    if (current.length >= MAX_STOPPAGE_CHIPS) return
+    patchSettings({
+      stoppageIncrementsMs: [...current, ms].sort((a, b) => a - b),
+    })
   }
 
   const handleBackup = async () => {
@@ -155,18 +159,22 @@ function Settings() {
           <SectionLabel>Stoppage time buttons</SectionLabel>
           <Card className="flex flex-col gap-3 p-4">
             <p className="text-[14px] text-muted">
-              Which quick-add chips appear on the live clock.
+              Which quick-add chips appear on the live clock. Pick up to three.
             </p>
             <div className="flex flex-wrap gap-2.5">
               {STOPPAGE_OPTIONS.map((ms) => {
-                const on = team.settings.stoppageIncrementsMs.includes(ms)
+                const chosen = team.settings.stoppageIncrementsMs
+                const on = chosen.includes(ms)
+                const full = !on && chosen.length >= MAX_STOPPAGE_CHIPS
+                const last = on && chosen.length === 1
                 return (
                   <button
                     key={ms}
                     type="button"
                     aria-pressed={on}
+                    disabled={full || last}
                     onClick={() => toggleStoppage(ms)}
-                    className={`press cond flex h-11 items-center rounded-full px-4.5 text-[18px] font-bold ${
+                    className={`press cond flex h-11 items-center rounded-full px-4.5 text-[18px] font-bold disabled:opacity-40 ${
                       on ? 'bg-pitch text-white' : 'bg-chip text-muted'
                     }`}
                   >
@@ -175,6 +183,11 @@ function Settings() {
                 )
               })}
             </div>
+            {team.settings.stoppageIncrementsMs.length >= MAX_STOPPAGE_CHIPS ? (
+              <p className="text-[13px] text-faint">
+                That is three. Turn one off to swap it for another.
+              </p>
+            ) : null}
           </Card>
         </div>
 
