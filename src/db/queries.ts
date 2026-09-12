@@ -1,5 +1,13 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
-import { appendEvent, db, deleteGame, deleteTeam, newId, popLastEvent } from './schema'
+import {
+  appendEvent,
+  appendEvents,
+  db,
+  deleteGame,
+  deleteTeam,
+  newId,
+  popLastEvent,
+} from './schema'
 import type { DraftGameEvent, Game, Id, Player, Team, TeamSettings } from '~/engine/types'
 
 /**
@@ -230,6 +238,15 @@ export function useAppendEvent(gameId: Id) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (event: DraftGameEvent) => appendEvent(gameId, event),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.events(gameId) }),
+  })
+}
+
+/** Writes several events as one undoable act. */
+export function useAppendEvents(gameId: Id) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (events: DraftGameEvent[]) => appendEvents(gameId, events),
     onSuccess: () => client.invalidateQueries({ queryKey: keys.events(gameId) }),
   })
 }

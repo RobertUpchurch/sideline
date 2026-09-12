@@ -86,16 +86,59 @@ export async function appendEvent(
   })
 }
 
-/** Removes the most recent event, which is how undo works during a game. */
-export async function popLastEvent(gameId: Id): Promise<GameEvent | null> {
+/**
+ * Appends several events as one act.
+ *
+ * They share a timestamp and land in a single transaction, so a line change of
+ * four players is either wholly applied or not at all. A half-finished
+ * substitution mid-game would be worse than none.
+ */
+export async function appendEvents(
+  gameId: Id,
+  events: readonly DraftGameEvent[],
+): Promise<GameEvent[]> {
+  if (!events.length) return []
   return db.transaction('rw', db.events, async () => {
     const last = await db.events
       .where('[gameId+seq]')
       .between([gameId, 0], [gameId, Infinity])
       .last()
-    if (!last) return null
-    await db.events.delete(last.id)
-    return last
+    const ts = Date.now()
+    const records = events.map((event, index) => {
+      const { ts: given, ...rest } = event
+      return {
+        ...rest,
+        id: newId(),
+        gameId,
+        seq: (last?.seq ?? 0) + index + 1,
+        ts: given ?? ts,
+      } as GameEvent
+    })
+    await db.events.bulkAdd(records)
+    return records
+  })
+}
+
+/**
+ * Removes the most recent act, which is how undo works during a game.
+ *
+ * Everything written together by `appendEvents` shares a timestamp, so undo
+ * takes the whole trailing run at that instant. Otherwise undoing a four
+ * player line change would take four taps and leave the lineup mangled in
+ * between. Two separate taps never land on the same millisecond, so this only
+ * ever groups what was meant as one action.
+ */
+export async function popLastEvent(gameId: Id): Promise<GameEvent[]> {
+  return db.transaction('rw', db.events, async () => {
+    const all = await db.events
+      .where('[gameId+seq]')
+      .between([gameId, 0], [gameId, Infinity])
+      .toArray()
+    const last = all[all.length - 1]
+    if (!last) return []
+    const group = all.filter((event) => event.ts === last.ts)
+    await db.events.bulkDelete(group.map((event) => event.id))
+    return group
   })
 }
 

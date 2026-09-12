@@ -51,6 +51,8 @@ If a screen is calculating minutes itself, that calculation is in the wrong plac
 ## House style
 
 - Plain language in the interface. "Who turned up", not "Attendance management".
+- A whole line going off at once is the normal case at this age, not the exception. Any
+  change to substitutions has to keep working for four players as readily as for one.
 - Every tappable thing is at least 44 pixels tall. This app is used one-handed, outdoors.
 - Comments explain why, not what.
 - No analytics, no tracking, no accounts, no network calls after install. That is a

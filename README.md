@@ -10,8 +10,9 @@ parent asking why their kid is still on the bench.
 
 - **Runs the clock.** Periods, the break between them, pauses, and stoppage time you add
   when the referee does.
-- **Keeps time fair.** Every child's minutes are tracked live. The bench is always sorted
-  by who has played least, and a substitution is two taps.
+- **Keeps time fair.** Every child's minutes are tracked live. The field is sorted by who
+  has played most and the bench by who has played least, so the next swap is the top of
+  each list. Change one player or a whole line at once, then commit it in a single tap.
 - **Suggests the next swap.** The child who has played most comes off for the child who
   has played least. Accept it or ignore it.
 - **Handles the kid who turns up at minute eight.** Add them mid-game and they start on

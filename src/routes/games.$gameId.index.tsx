@@ -6,6 +6,7 @@ import {
   gameQuery,
   playersQuery,
   useAppendEvent,
+  useAppendEvents,
   useDeleteGame,
   useUndoLastEvent,
   useUpdateGame,
@@ -69,11 +70,13 @@ function LiveGame() {
   })
 
   const appendEvent = useAppendEvent(gameId)
+  const appendEvents = useAppendEvents(gameId)
   const undoEvent = useUndoLastEvent(gameId)
   const updateGame = useUpdateGame(gameId)
   const deleteGame = useDeleteGame(teamId)
 
-  const [selected, setSelected] = useState<Id | null>(null)
+  const [comingOff, setComingOff] = useState<ReadonlySet<Id>>(new Set())
+  const [comingOn, setComingOn] = useState<ReadonlySet<Id>>(new Set())
   const [breakLineup, setBreakLineup] = useState<Id[] | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [addingLate, setAddingLate] = useState(false)
@@ -129,16 +132,48 @@ function LiveGame() {
   const field = fieldOrder(times)
   const bench = benchOrder(times)
   const upNext = nextPeriod(clock, settings)
-  const selectedIsField = selected !== null && field.some((t) => t.playerId === selected)
-  const selectedIsBench = selected !== null && bench.some((t) => t.playerId === selected)
 
-  const swap = async (onPlayerId: Id, offPlayerId: Id) => {
-    setSelected(null)
-    await appendEvent.mutateAsync({ type: 'sub', onPlayerId, offPlayerId })
+  const clearSelection = () => {
+    setComingOff(new Set())
+    setComingOn(new Set())
+  }
+
+  const toggle = (
+    playerId: Id,
+    set: ReadonlySet<Id>,
+    apply: (next: ReadonlySet<Id>) => void,
+  ) => {
+    const next = new Set(set)
+    if (next.has(playerId)) next.delete(playerId)
+    else next.add(playerId)
+    apply(next)
+  }
+
+  /**
+   * Applies the whole line change at once.
+   *
+   * Pairing is arbitrary because the lineup is a set: swapping A for X and B
+   * for Y leaves the same eleven as A for Y and B for X. What matters is that
+   * the events land together, so the clock never sees a lineup that was never
+   * really on the field.
+   */
+  const applySubs = async () => {
+    const off = [...comingOff]
+    const on = [...comingOn]
+    if (!off.length || off.length !== on.length) return
+    clearSelection()
+    await appendEvents.mutateAsync(
+      off.map((offPlayerId, index) => ({
+        type: 'sub' as const,
+        offPlayerId,
+        onPlayerId: on[index]!,
+      })),
+    )
   }
 
   const startPeriod = async (period: number) => {
     primeAudio()
+    clearSelection()
     if (period > 1) {
       // Write the lineup the coach can see, whether they changed it or simply
       // accepted the suggestion. Without this the previous period's eleven
@@ -219,7 +254,7 @@ function LiveGame() {
               type="button"
               aria-label="Undo the last thing I did"
               onClick={() => {
-                setSelected(null)
+                clearSelection()
                 undoEvent.mutate()
               }}
               className="press flex size-11 items-center justify-center rounded-xl text-muted"
@@ -355,13 +390,7 @@ function LiveGame() {
                 On the field · most first
               </h2>
               <span className="truncate text-[13px] text-faint">
-                {selectedIsField
-                  ? 'now tap who comes on'
-                  : selectedIsBench
-                    ? 'now tap who comes off'
-                    : clock.phase === 'pregame'
-                      ? 'tap to change'
-                      : 'tap two to swap'}
+                {comingOff.size > 0 ? 'now pick who comes on' : 'tap anyone coming off'}
               </span>
             </div>
 
@@ -371,13 +400,10 @@ function LiveGame() {
                   key={time.playerId}
                   time={time}
                   name={nameById.get(time.playerId) ?? 'Player'}
-                  selected={selected === time.playerId}
+                  selected={comingOff.has(time.playerId)}
                   average={average}
                   maxTotal={maxTotal}
-                  onTap={() => {
-                    if (selectedIsBench && selected) void swap(selected, time.playerId)
-                    else setSelected(selected === time.playerId ? null : time.playerId)
-                  }}
+                  onTap={() => toggle(time.playerId, comingOff, setComingOff)}
                 />
               ))}
             </div>
@@ -407,13 +433,12 @@ function LiveGame() {
                       time={time}
                       name={nameById.get(time.playerId) ?? 'Player'}
                       average={average}
-                      selected={selected === time.playerId}
-                      highlighted={selectedIsField && index === 0}
-                      armed={selectedIsField}
-                      onTap={() => {
-                        if (selectedIsField && selected) void swap(time.playerId, selected)
-                        else setSelected(selected === time.playerId ? null : time.playerId)
-                      }}
+                      selected={comingOn.has(time.playerId)}
+                      highlighted={
+                        comingOff.size > comingOn.size && index < comingOff.size - comingOn.size
+                      }
+                      armed={comingOff.size > 0}
+                      onTap={() => toggle(time.playerId, comingOn, setComingOn)}
                     />
                   ))}
                 </div>
@@ -435,6 +460,15 @@ function LiveGame() {
       )}
 
       <div className="flex-1" />
+
+      {comingOff.size > 0 || comingOn.size > 0 ? (
+        <SubBar
+          off={[...comingOff].map((id) => nameById.get(id) ?? 'Player')}
+          on={[...comingOn].map((id) => nameById.get(id) ?? 'Player')}
+          onClear={clearSelection}
+          onApply={applySubs}
+        />
+      ) : null}
 
       <div className="flex items-center justify-center gap-1 px-5 pt-4">
         {clock.phase === 'running' || clock.phase === 'paused' ? (
@@ -474,6 +508,69 @@ function LiveGame() {
         />
       ) : null}
     </Screen>
+  )
+}
+
+/**
+ * The pending substitution, and the button that commits it.
+ *
+ * A whole line going off at once is the common case in this age group, not the
+ * exception, so nothing is applied until the coach says so. It sits fixed at
+ * the bottom because the bench it refers to is usually scrolled past by the
+ * time the selection is finished.
+ */
+function SubBar({
+  off,
+  on,
+  onClear,
+  onApply,
+}: {
+  off: string[]
+  on: string[]
+  onClear: () => void
+  onApply: () => Promise<void>
+}) {
+  const balanced = off.length > 0 && off.length === on.length
+  const shortOn = off.length - on.length
+
+  const label = balanced
+    ? off.length === 1
+      ? `Swap ${off[0]} for ${on[0]}`
+      : `Make ${off.length} subs`
+    : shortOn > 0
+      ? `Pick ${shortOn} more coming on`
+      : `Pick ${-shortOn} more coming off`
+
+  return (
+    <div className="sticky bottom-0 z-10 mt-3 border-t border-edge bg-ground/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="mb-2 flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate text-[14px]">
+          <span className="font-semibold">{off.join(', ') || 'nobody'}</span>
+          <span className="text-faint"> off · </span>
+          <span className="font-semibold">{on.join(', ') || 'nobody'}</span>
+          <span className="text-faint"> on</span>
+        </p>
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear this substitution"
+          className="press flex size-11 shrink-0 items-center justify-center rounded-xl bg-chip text-muted"
+        >
+          <CloseIcon />
+        </button>
+      </div>
+      <button
+        type="button"
+        disabled={!balanced}
+        onClick={() => void onApply()}
+        className={`press flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-[18px] font-bold ${
+          balanced ? 'bg-pitch text-white' : 'bg-chip text-muted'
+        }`}
+      >
+        {balanced ? <SwapIcon size={20} /> : null}
+        {label}
+      </button>
+    </div>
   )
 }
 

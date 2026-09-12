@@ -211,6 +211,30 @@ describe('playtime', () => {
     expect(byId.b!.totalMs).toBe(20 * MIN)
   })
 
+  it('applies a whole line change as one swap', () => {
+    // Four off and four on at the same instant, which is the normal way a
+    // coach at this age group makes a change.
+    const roster8 = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    const builder = log().lineup(T0, ['a', 'b', 'c', 'd']).start(T0, 1)
+    const at = T0 + 5 * MIN
+    builder.sub(at, 'e', 'a')
+    builder.sub(at, 'f', 'b')
+    builder.sub(at, 'g', 'c')
+    builder.sub(at, 'h', 'd')
+
+    expect([...currentLineup(builder.events)].sort()).toEqual(['e', 'f', 'g', 'h'])
+
+    const times = derivePlaytime(builder.events, roster8, T0 + 12 * MIN)
+    const byId = Object.fromEntries(times.map((t) => [t.playerId, t]))
+
+    // The starters stop exactly when the replacements start. No child is
+    // credited for a lineup that was only ever momentary.
+    expect(byId.a!.totalMs).toBe(5 * MIN)
+    expect(byId.e!.totalMs).toBe(7 * MIN)
+    const played = times.reduce((sum, t) => sum + t.totalMs, 0)
+    expect(played).toBe(4 * 12 * MIN)
+  })
+
   it('tracks the current lineup through subs', () => {
     const { events } = log()
       .lineup(T0, ['a', 'b', 'c', 'd'])
