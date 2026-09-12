@@ -86,17 +86,28 @@ function Share() {
           </p>
         </div>
 
-        <div className="aspect-square w-full max-w-[318px] rounded-3xl border-2 border-ink bg-white p-2">
+        {/*
+          The image sizes the card, not the other way round.
+          
+          Giving the card an aspect ratio and the image `height: 100%` looks
+          equivalent and is not: WebKit will not resolve a percentage height
+          against a height that came from an aspect ratio, so on an iPhone the
+          code grew past the card and broke out through the border. The QR is
+          square by nature, so letting it lay itself out at full width with an
+          automatic height needs no percentage at all. `overflow-hidden` is a
+          belt and braces guard so nothing can cross the rounded corner again.
+        */}
+        <div className="w-full max-w-[318px] overflow-hidden rounded-3xl border-2 border-ink bg-white p-2">
           {qr ? (
             <img
               src={qr}
               alt={`QR code linking to ${url}`}
-              className="block size-full"
+              className="block h-auto w-full"
               width={640}
               height={640}
             />
           ) : (
-            <div className="size-full animate-pulse rounded-xl bg-chip" />
+            <div className="aspect-square w-full animate-pulse rounded-xl bg-chip" />
           )}
         </div>
 
