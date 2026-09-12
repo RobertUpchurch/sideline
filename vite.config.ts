@@ -18,6 +18,11 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // iOS reads a launch image before the service worker exists, and
+        // caches it when the app is added to the home screen. Precaching a
+        // quarter of a megabyte of them would only make the install heavier
+        // for a file the worker is never asked for.
+        globIgnores: ['splash/**'],
         navigateFallback: 'index.html',
       },
       manifest: {

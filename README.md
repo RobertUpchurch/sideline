@@ -25,7 +25,7 @@ parent asking why their kid is still on the bench.
 - **Remembers the season.** Per-game minutes tables and per-child averages, measured only
   over the games they were available for.
 - **Works offline.** Install it to your home screen and it opens like an app with no
-  signal at all.
+  signal at all, launch screen and all.
 
 ## Privacy
 
@@ -42,7 +42,8 @@ npm run dev
 ```
 
 Other scripts: `npm test` runs the engine tests, `npm run build` produces `dist/`,
-`npm run typecheck` checks types, and `npm run icons` regenerates the app icons.
+`npm run typecheck` checks types, and `npm run assets` regenerates the app icons and the
+iOS launch images.
 
 ## Hosting it for your league
 
