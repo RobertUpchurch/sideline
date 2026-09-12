@@ -12,14 +12,21 @@
   --color-divider: #eeefe8;
   --color-chip: #f1f2ec;
   --color-ink: #101b14;
-  --color-muted: #5f6e64;
-  --color-faint: #8a948d;
+  /*
+   * The greys and the amber are darker than they look like they need to be.
+   * Every one of them is measured against the ground and the card so that
+   * small text clears 4.5:1 — this app is read outdoors, in sun, at arm's
+   * length, and a hint nobody can read is not a hint.
+   */
+  --color-muted: #4f5c53;
+  --color-faint: #64736a;
   --color-pitch: #1b6b3a;
   --color-pitch-deep: #14522c;
   --color-pitch-mint: #e4f1e8;
   --color-pitch-pale: #cfe3d5;
-  --color-action: #e8641b;
-  --color-amber: #b7791a;
+  /* Deep enough that white sits on it at 4.7:1 rather than a marginal 3.3:1. */
+  --color-action: #c2500f;
+  --color-amber: #9a6410;
   --color-slate: #a7b3aa;
   --color-salmon: #f2b8ae;
   --color-loss: #b8402f;
@@ -29,21 +36,47 @@
   --font-cond: 'Barlow Condensed', 'Arial Narrow', ui-sans-serif, system-ui, sans-serif;
 }
 
-html {
-  background: var(--color-ground);
-  /* Stop iOS bumping the type size when the phone is turned sideways. */
-  -webkit-text-size-adjust: 100%;
-}
+@layer base {
+  html {
+    background: var(--color-ground);
+    /* Stop iOS bumping the type size when the phone is turned sideways. */
+    -webkit-text-size-adjust: 100%;
+  }
 
-body {
-  margin: 0;
-  background: var(--color-ground);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  /* No accidental zoom from a fast double tap on a substitution. */
-  touch-action: manipulation;
-  overscroll-behavior-y: none;
+  body {
+    margin: 0;
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* No accidental zoom from a fast double tap on a substitution. */
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
+  }
+
+  /*
+   * These must live in `base`. An unlayered element rule wins over Tailwind's
+   * layered utilities, so `color: inherit` out here would override every
+   * `text-white` on a button and paint dark text on a green fill.
+   */
+  button {
+    font: inherit;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* iOS zooms any field whose type is under 16px when it gets focus. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 /* Numbers that do not jiggle as a clock counts down. */
@@ -53,12 +86,6 @@ body {
 
 .cond {
   font-family: var(--font-cond);
-}
-
-button {
-  font: inherit;
-  color: inherit;
-  -webkit-tap-highlight-color: transparent;
 }
 
 /* Every tappable thing shrinks a little, so a tap in bright sun still reads. */
@@ -78,15 +105,3 @@ button {
   }
 }
 
-input,
-select {
-  font: inherit;
-  color: inherit;
-}
-
-/* iOS zooms any field whose type is under 16px when it gets focus. */
-input,
-select,
-textarea {
-  font-size: 16px;
-}

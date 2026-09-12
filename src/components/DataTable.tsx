@@ -27,6 +27,26 @@ export type Columns<TRow extends Record<string, unknown>> = ColumnDef<
   TRow
 >[]
 
+/** Which way this column is sorted. Drawn, so it scales and recolours. */
+function SortArrow({ direction }: { direction: 'asc' | 'desc' }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={direction === 'asc' ? 'rotate-180' : undefined}
+    >
+      <path d="M2 4.5L6 8.5L10 4.5" />
+    </svg>
+  )
+}
+
 export function DataTable<TRow extends Record<string, unknown>>({
   data,
   columns,
@@ -82,9 +102,7 @@ export function DataTable<TRow extends Record<string, unknown>>({
                       }`}
                     >
                       <table.FlexRender header={header} />
-                      <span aria-hidden="true" className="text-[10px]">
-                        {direction === 'asc' ? '▲' : direction === 'desc' ? '▼' : ''}
-                      </span>
+                      {direction ? <SortArrow direction={direction} /> : null}
                     </button>
                   </th>
                 )
