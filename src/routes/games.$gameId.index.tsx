@@ -465,7 +465,6 @@ function LiveGame() {
         <SubBar
           off={[...comingOff].map((id) => nameById.get(id) ?? 'Player')}
           on={[...comingOn].map((id) => nameById.get(id) ?? 'Player')}
-          onClear={clearSelection}
           onApply={applySubs}
         />
       ) : null}
@@ -517,17 +516,20 @@ function LiveGame() {
  * A whole line going off at once is the common case in this age group, not the
  * exception, so nothing is applied until the coach says so. It sits fixed at
  * the bottom because the bench it refers to is usually scrolled past by the
- * time the selection is finished.
+ * time the selection is finished, and it is kept to a single row because
+ * everything it would otherwise spell out is already visible: the chosen
+ * players are highlighted in the lists right above it.
+ *
+ * There is no cancel button for the same reason. Tapping a highlighted player
+ * removes them, which is how they were chosen in the first place.
  */
 function SubBar({
   off,
   on,
-  onClear,
   onApply,
 }: {
   off: string[]
   on: string[]
-  onClear: () => void
   onApply: () => Promise<void>
 }) {
   const balanced = off.length > 0 && off.length === on.length
@@ -542,32 +544,16 @@ function SubBar({
       : `Pick ${-shortOn} more coming off`
 
   return (
-    <div className="sticky bottom-0 z-10 mt-3 border-t border-edge bg-ground/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
-      <div className="mb-2 flex items-center gap-2">
-        <p className="min-w-0 flex-1 truncate text-[14px]">
-          <span className="font-semibold">{off.join(', ') || 'nobody'}</span>
-          <span className="text-faint"> off · </span>
-          <span className="font-semibold">{on.join(', ') || 'nobody'}</span>
-          <span className="text-faint"> on</span>
-        </p>
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label="Clear this substitution"
-          className="press flex size-11 shrink-0 items-center justify-center rounded-xl bg-chip text-muted"
-        >
-          <CloseIcon />
-        </button>
-      </div>
+    <div className="sticky bottom-0 z-10 mt-2 bg-ground/95 px-5 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur">
       <button
         type="button"
         disabled={!balanced}
         onClick={() => void onApply()}
-        className={`press flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-[18px] font-bold ${
+        className={`press flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[17px] font-bold ${
           balanced ? 'bg-pitch text-white' : 'bg-chip text-muted'
         }`}
       >
-        {balanced ? <SwapIcon size={20} /> : null}
+        {balanced ? <SwapIcon size={18} /> : null}
         {label}
       </button>
     </div>
