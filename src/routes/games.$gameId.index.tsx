@@ -239,16 +239,21 @@ function LiveGame() {
             room to be read at a glance. Stoppage time lives on its own row
             below, because adding it is a considered act and scoring against
             you is not.
+
+            Nobody can score before the referee starts the game, so until then
+            the only thing on this row is kick off.
           */}
-          <button
-            type="button"
-            aria-label="Add a goal for the other team"
-            onClick={() => appendEvent.mutate({ type: 'goal_them' })}
-            className="press flex h-14 w-[118px] items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-salmon"
-          >
-            <PlusIcon size={18} />
-            <span className="text-[16px] font-bold">Them</span>
-          </button>
+          {clock.phase !== 'pregame' ? (
+            <button
+              type="button"
+              aria-label="Add a goal for the other team"
+              onClick={() => appendEvent.mutate({ type: 'goal_them' })}
+              className="press flex h-14 w-[118px] items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-salmon"
+            >
+              <PlusIcon size={18} />
+              <span className="text-[16px] font-bold">Them</span>
+            </button>
+          ) : null}
         </div>
 
         {clock.phase === 'running' || clock.phase === 'paused' ? (
@@ -290,7 +295,9 @@ function LiveGame() {
                   ? 'now tap who comes on'
                   : selectedIsBench
                     ? 'now tap who comes off'
-                    : 'tap a player to sub or score'}
+                    : clock.phase === 'pregame'
+                      ? 'tap a player to change the lineup'
+                      : 'tap a player to sub or score'}
               </span>
             </div>
 
@@ -311,21 +318,23 @@ function LiveGame() {
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                appendEvent.mutate({ type: 'goal_us', playerId: selected })
-                setSelected(null)
-              }}
-              className={`press flex h-[50px] items-center justify-center gap-2 rounded-2xl text-[17px] font-bold ${
-                selectedIsField ? 'bg-action text-white' : 'bg-chip text-muted'
-              }`}
-            >
-              <BallIcon />
-              {selectedIsField
-                ? `Goal by ${nameById.get(selected!) ?? 'them'}`
-                : 'Goal for us · no scorer'}
-            </button>
+            {clock.phase !== 'pregame' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  appendEvent.mutate({ type: 'goal_us', playerId: selected })
+                  setSelected(null)
+                }}
+                className={`press flex h-[50px] items-center justify-center gap-2 rounded-2xl text-[17px] font-bold ${
+                  selectedIsField ? 'bg-action text-white' : 'bg-chip text-muted'
+                }`}
+              >
+                <BallIcon />
+                {selectedIsField
+                  ? `Goal by ${nameById.get(selected!) ?? 'them'}`
+                  : 'Goal for us · no scorer'}
+              </button>
+            ) : null}
           </section>
 
           <section className="mt-3.5 flex flex-col gap-2 px-5">
