@@ -13,7 +13,13 @@ import type { ReactNode } from 'react'
 export function Screen({ children }: { children: ReactNode }) {
   return (
     <div
-      className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-ground pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]"
+      /*
+       * The safe area is the whole of the top padding on a phone, which is
+       * what keeps the header clear of the Dynamic Island. The floor only
+       * applies where there is no inset at all — a browser with its own
+       * chrome, or a desktop — so it can be slight.
+       */
+      className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-ground pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))]"
     >
       {children}
     </div>
@@ -32,7 +38,7 @@ export function TopBar({
   action?: ReactNode
 }) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 px-2">
+    <header className="flex h-12 shrink-0 items-center justify-between gap-2 px-2">
       <div className="flex min-w-[72px] justify-start">
         {back ? (
           <Link

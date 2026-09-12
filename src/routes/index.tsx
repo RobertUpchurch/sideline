@@ -32,7 +32,7 @@ function Home() {
 
   return (
     <Screen>
-      <header className="flex h-14 items-center justify-between px-5">
+      <header className="flex h-12 items-center justify-between px-5">
         <span className="cond text-[28px] font-extrabold tracking-[0.04em] text-pitch">
           SIDELINE
         </span>
