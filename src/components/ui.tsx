@@ -376,15 +376,6 @@ export const SwapIcon = ({ size = 19 }) =>
     size,
   )
 
-export const BallIcon = ({ size = 20 }) =>
-  icon(
-    <>
-      <circle cx="12" cy="12" r="9" strokeWidth="2" />
-      <path d="M12 7.5l4.3 3.1-1.6 5H9.3l-1.6-5z" strokeWidth="2" />
-    </>,
-    size,
-  )
-
 export const CopyIcon = ({ size = 20 }) =>
   icon(
     <>
@@ -408,6 +399,16 @@ export const WhistleIcon = ({ size = 20 }) =>
     <>
       <circle cx="9" cy="13" r="5" />
       <path d="M14 11h7M14 15l5 3" />
+    </>,
+    size,
+  )
+
+export const MoreIcon = ({ size = 22 }) =>
+  icon(
+    <>
+      <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
     </>,
     size,
   )

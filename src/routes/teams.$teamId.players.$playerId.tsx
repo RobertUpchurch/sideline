@@ -65,7 +65,10 @@ function PlayerReport() {
                 label="vs team avg"
                 className={vsTone}
               />
-              <Stat value={String(report.goals)} label={report.goals === 1 ? 'goal' : 'goals'} />
+              <Stat
+                value={String(report.gamesAvailable)}
+                label={report.gamesAvailable === 1 ? 'game' : 'games'}
+              />
             </div>
 
             <Card className="flex flex-col gap-3 p-4">
@@ -136,11 +139,6 @@ function PlayerReport() {
                           {formatDate(game.date)}
                         </span>
                       </span>
-                      {game.goals > 0 ? (
-                        <span className="text-[13px] text-muted">
-                          {game.goals} {game.goals === 1 ? 'goal' : 'goals'}
-                        </span>
-                      ) : null}
                       <span
                         className={`cond tnum text-[20px] font-bold ${
                           game.totalMs === null ? 'text-faint' : 'text-ink'

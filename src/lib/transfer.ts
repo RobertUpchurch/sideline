@@ -114,7 +114,6 @@ export async function importTeam(
       next.onPlayerId = mapId(next.onPlayerId)
       next.offPlayerId = mapId(next.offPlayerId)
     }
-    if (next.type === 'goal_us' && next.playerId) next.playerId = mapId(next.playerId)
     return next
   })
 
@@ -141,7 +140,7 @@ export async function importTeam(
   }
 }
 
-/** Minutes and goals for one game, as a spreadsheet a coach can email. */
+/** The minutes table for one game, as a spreadsheet a coach can email. */
 export async function gameCsv(gameId: Id): Promise<string> {
   const game = await db.games.get(gameId)
   if (!game) throw new Error('That game is no longer on this phone.')
@@ -151,7 +150,7 @@ export async function gameCsv(gameId: Id): Promise<string> {
   const summary = summarizeGame({ game, events })
 
   const rows: string[][] = [
-    ['Player', 'Number', 'Minutes', 'Seconds played', 'Difference from average', 'Goals'],
+    ['Player', 'Number', 'Minutes', 'Seconds played', 'Difference from average'],
   ]
   for (const time of [...summary.times].sort((a, b) => b.totalMs - a.totalMs)) {
     const player = byId.get(time.playerId)
@@ -161,7 +160,6 @@ export async function gameCsv(gameId: Id): Promise<string> {
       formatClock(time.totalMs),
       String(Math.round(time.totalMs / 1000)),
       formatClock(Math.abs(time.totalMs - summary.averageMs)),
-      String(summary.goals.get(time.playerId) ?? 0),
     ])
   }
 

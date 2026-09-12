@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { eventsQuery, gameQuery, playersQuery } from '~/db/queries'
+import { eventsQuery, gameQuery, playersQuery, useDeleteGame } from '~/db/queries'
 import { summarizeGame } from '~/engine/reports'
 import { band } from '~/engine/fairness'
 import { gameCsv, offerFile } from '~/lib/transfer'
@@ -9,13 +9,13 @@ import { formatClock, formatDate, formatDelta } from '~/lib/time'
 import { DataTable, type Columns } from '~/components/DataTable'
 import {
   Button,
+  Card,
   LinkButton,
   Screen,
   SectionLabel,
   ShareIcon,
   TopBar,
 } from '~/components/ui'
-import { periodLabel } from '~/engine/clock'
 
 export const Route = createFileRoute('/games/$gameId/summary')({
   loader: async ({ context, params }) => {
@@ -43,11 +43,11 @@ type MinutesRow = {
   name: string
   totalMs: number
   deltaMs: number
-  goals: number
 }
 
 function Summary() {
   const { gameId } = Route.useParams()
+  const navigate = useNavigate()
   const { data: game } = useQuery(gameQuery(gameId))
   const { data: events = [] } = useQuery(eventsQuery(gameId))
   const { data: players = [] } = useQuery({
@@ -55,6 +55,8 @@ function Summary() {
     enabled: Boolean(game),
   })
   const [busy, setBusy] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const deleteGame = useDeleteGame(game?.teamId ?? '')
 
   const summary = useMemo(
     () => (game ? summarizeGame({ game, events }) : null),
@@ -69,7 +71,6 @@ function Summary() {
       name: nameById.get(time.playerId) ?? 'Player',
       totalMs: time.totalMs,
       deltaMs: Math.round(time.totalMs - summary.averageMs),
-      goals: summary.goals.get(time.playerId) ?? 0,
     }))
   }, [summary, players])
 
@@ -113,29 +114,10 @@ function Summary() {
           )
         },
       },
-      {
-        id: 'goals',
-        accessorFn: (row) => row.goals,
-        header: 'Goals',
-        sortFn: 'basic',
-        cell: (info) => {
-          const goals = Number(info.getValue())
-          return (
-            <span className="cond tnum text-[18px] font-bold text-muted">
-              {goals > 0 ? goals : ''}
-            </span>
-          )
-        },
-      },
     ]
   }, [summary])
 
   if (!game || !summary) return null
-
-  const nameById = new Map(players.map((player) => [player.id, player.name]))
-  const scorers = events.flatMap((event) =>
-    event.type === 'goal_us' ? [event.playerId] : [],
-  )
 
   const handleCsv = async () => {
     setBusy(true)
@@ -168,15 +150,6 @@ function Summary() {
               {summary.theirScore}
             </span>
           </p>
-          {scorers.length > 0 ? (
-            <p className="flex flex-wrap justify-center gap-x-3.5 gap-y-1 text-[14px] text-pitch-pale">
-              {scorers.map((playerId, index) => (
-                <span key={index}>
-                  {playerId ? (nameById.get(playerId) ?? 'Player') : 'Unknown scorer'}
-                </span>
-              ))}
-            </p>
-          ) : null}
         </div>
 
         <div className="flex flex-col gap-2">
@@ -190,7 +163,7 @@ function Summary() {
             columns={columns}
             getRowId={(row) => row.playerId}
             initialSort={{ id: 'time', desc: true }}
-            align={{ time: 'right', delta: 'right', goals: 'right' }}
+            align={{ time: 'right', delta: 'right' }}
           />
           <p className="px-1 text-[13px] text-faint">
             Tap a column heading to sort. A spread under a couple of minutes is a fair game.
@@ -210,10 +183,42 @@ function Summary() {
             <ShareIcon size={18} />
             {busy ? 'Preparing…' : 'Share the minutes'}
           </Button>
+
+          {confirmingDelete ? (
+            <Card className="flex flex-col gap-3 border-loss p-4">
+              <p className="text-[14px] text-muted">
+                Delete this game? It disappears from the season and from everyone's
+                averages. This cannot be undone.
+              </p>
+              <div className="flex gap-2.5">
+                <Button
+                  tone="quiet"
+                  className="flex-1"
+                  onClick={() => setConfirmingDelete(false)}
+                >
+                  Keep it
+                </Button>
+                <Button
+                  tone="action"
+                  className="flex-1 !bg-loss"
+                  onClick={async () => {
+                    await deleteGame.mutateAsync(gameId)
+                    await navigate({ to: '/' })
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <Button tone="danger" onClick={() => setConfirmingDelete(true)}>
+              Delete this game
+            </Button>
+          )}
+
           <p className="text-center text-[12px] text-faint">
-            {game.settings.periods} × {periodLabel(1, game.settings.periods)} of{' '}
-            {Math.round(game.settings.periodMs / 60_000)} minutes ·{' '}
-            {game.settings.fieldSize} on the field
+            {game.settings.periods} × {Math.round(game.settings.periodMs / 60_000)} minutes
+            · {game.settings.fieldSize} on the field
           </p>
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { deriveScore, derivePlaytime, goalsByPlayer } from './playtime'
+import { deriveScore, derivePlaytime } from './playtime'
 import { deriveClock } from './clock'
 import { averageMs, spreadMs } from './fairness'
 import type { Game, GameEvent, Id, Player, PlayerTime } from './types'
@@ -17,7 +17,6 @@ export interface GameSummary {
   /** Positive when we won, zero for a draw, negative for a loss. */
   result: 'win' | 'draw' | 'loss'
   times: PlayerTime[]
-  goals: Map<Id, number>
   averageMs: number
   spreadMs: number
 }
@@ -37,7 +36,6 @@ export function summarizeGame({ game, events }: GameWithEvents): GameSummary {
     theirScore,
     result: ourScore > theirScore ? 'win' : ourScore < theirScore ? 'loss' : 'draw',
     times,
-    goals: goalsByPlayer(events),
     averageMs: averageMs(times),
     spreadMs: spreadMs(times),
   }
@@ -53,7 +51,6 @@ export interface PlayerSeasonGame {
   date: number
   /** Null when the child was not available for that game. */
   totalMs: number | null
-  goals: number
 }
 
 export interface PlayerSeasonReport {
@@ -64,7 +61,6 @@ export interface PlayerSeasonReport {
   averageMs: number
   /** This player's average minus the team's average across the same games. */
   vsTeamAverageMs: number
-  goals: number
   games: PlayerSeasonGame[]
 }
 
@@ -94,7 +90,6 @@ export function seasonReport(
         opponent: summary.opponent,
         date: summary.date,
         totalMs: time ? time.totalMs : null,
-        goals: summary.goals.get(player.id) ?? 0,
       }
     })
 
@@ -116,7 +111,6 @@ export function seasonReport(
       totalMs,
       averageMs: averageMsForPlayer,
       vsTeamAverageMs: averageMsForPlayer - teamAverageOverSameGames,
-      goals: games.reduce((sum, entry) => sum + entry.goals, 0),
       games,
     }
   })

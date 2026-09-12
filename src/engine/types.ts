@@ -88,7 +88,12 @@ export type GameEvent = BaseEvent &
     | { type: 'period_end'; period: number }
     | { type: 'stoppage_added'; period: number; ms: number }
     | { type: 'sub'; onPlayerId: Id; offPlayerId: Id }
-    | { type: 'goal_us'; playerId: Id | null }
+    /*
+     * Goals are the team's. Kindergarten goals are a scramble, the coach is
+     * watching the clock, and crediting one five-year-old over another is not
+     * something this app should be in the business of.
+     */
+    | { type: 'goal_us' }
     | { type: 'goal_them' }
     | { type: 'game_end' }
   )

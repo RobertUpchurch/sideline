@@ -153,17 +153,6 @@ export function derivePlaytime(
   })
 }
 
-/** Goals scored by each player this game. */
-export function goalsByPlayer(events: readonly GameEvent[]): Map<Id, number> {
-  const goals = new Map<Id, number>()
-  for (const event of events) {
-    if (event.type === 'goal_us' && event.playerId) {
-      goals.set(event.playerId, (goals.get(event.playerId) ?? 0) + 1)
-    }
-  }
-  return goals
-}
-
 /** The score, as `[us, them]`. */
 export function deriveScore(events: readonly GameEvent[]): [number, number] {
   let us = 0

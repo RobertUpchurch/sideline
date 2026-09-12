@@ -35,7 +35,6 @@ type SeasonRow = {
   games: number
   averageMs: number
   vsTeamMs: number
-  goals: number
 }
 
 function Season() {
@@ -65,7 +64,6 @@ function Season() {
           games: entry.gamesAvailable,
           averageMs: entry.averageMs,
           vsTeamMs: entry.vsTeamAverageMs,
-          goals: entry.goals,
         })),
     [report],
   )
@@ -156,7 +154,7 @@ function Season() {
         {finished.length === 0 ? (
           <EmptyState
             title="No finished games yet"
-            body="Once you have played a game, this is where the season adds up: minutes per child, goals, and whether the time is landing evenly."
+            body="Once you have played a game, this is where the season adds up: minutes per child, and whether the time is landing evenly."
             action={
               <LinkButton
                 to="/teams/$teamId/new-game"

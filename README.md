@@ -14,8 +14,10 @@ parent asking why their kid is still on the bench.
   by who has played least, and a substitution is two taps.
 - **Suggests the next swap.** The child who has played most comes off for the child who
   has played least. Accept it or ignore it.
-- **Keeps score.** Tap a player then Goal to credit a scorer, or log a goal with no scorer
-  when nobody could tell. The other team gets a plus button and nothing else.
+- **Keeps score.** One button for your goals, one for theirs. Goals belong to the team,
+  not to a five-year-old in a scramble.
+- **Lets you stop.** End a game early when the light goes, or throw away one you started
+  by accident.
 - **Remembers the season.** Per-game minutes tables and per-child averages, measured only
   over the games they were available for.
 - **Works offline.** Install it to your home screen and it opens like an app with no

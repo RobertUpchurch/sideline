@@ -42,7 +42,7 @@ function log() {
       push(ts, { type: 'stoppage_added', period, ms }),
     sub: (ts: number, onPlayerId: string, offPlayerId: string) =>
       push(ts, { type: 'sub', onPlayerId, offPlayerId }),
-    goalUs: (ts: number, playerId: string | null) => push(ts, { type: 'goal_us', playerId }),
+    goalUs: (ts: number) => push(ts, { type: 'goal_us' }),
     goalThem: (ts: number) => push(ts, { type: 'goal_them' }),
     gameEnd: (ts: number) => push(ts, { type: 'game_end' }),
   }
@@ -214,7 +214,7 @@ describe('playtime', () => {
   })
 
   it('reads the score off the log', () => {
-    const { events } = log().goalUs(T0, 'a').goalThem(T0 + MIN).goalUs(T0 + 2 * MIN, null)
+    const { events } = log().goalUs(T0).goalThem(T0 + MIN).goalUs(T0 + 2 * MIN)
     expect(deriveScore(events)).toEqual([2, 1])
   })
 })
@@ -367,7 +367,7 @@ describe('reports', () => {
     const builder = log()
     builder.lineup(date, present.slice(0, 4))
     builder.start(date, 1)
-    builder.goalUs(date + 5 * MIN, present[0]!)
+    builder.goalUs(date + 5 * MIN)
     builder.goalThem(date + 7 * MIN)
     builder.end(date + 15 * MIN, 1)
     builder.start(date + 20 * MIN, 2)
@@ -393,7 +393,6 @@ describe('reports', () => {
     expect(summary.theirScore).toBe(1)
     expect(summary.result).toBe('draw')
     expect(summary.times).toHaveLength(5)
-    expect(summary.goals.get('a')).toBe(1)
   })
 
   it('does not count a game a child missed against their average', () => {

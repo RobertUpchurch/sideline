@@ -6,6 +6,7 @@ import {
   gameQuery,
   playersQuery,
   useAppendEvent,
+  useDeleteGame,
   useUndoLastEvent,
   useUpdateGame,
 } from '~/db/queries'
@@ -24,8 +25,10 @@ import { useNow } from '~/lib/now'
 import { useWakeLock } from '~/lib/wakeLock'
 import { formatClock, formatDelta } from '~/lib/time'
 import {
-  BallIcon,
+  Button,
   CheckIcon,
+  CloseIcon,
+  MoreIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -66,9 +69,11 @@ function LiveGame() {
   const appendEvent = useAppendEvent(gameId)
   const undoEvent = useUndoLastEvent(gameId)
   const updateGame = useUpdateGame(gameId)
+  const deleteGame = useDeleteGame(teamId)
 
   const [selected, setSelected] = useState<Id | null>(null)
   const [breakLineup, setBreakLineup] = useState<Id[] | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const settings = game?.settings
   const clock = useMemo(
@@ -135,13 +140,37 @@ function LiveGame() {
     await appendEvent.mutateAsync({ type: 'period_start', period })
   }
 
+  const finalize = async () => {
+    await updateGame.mutateAsync({ status: 'final', finalizedAt: Date.now() })
+    await navigate({ to: '/games/$gameId/summary', params: { gameId } })
+  }
+
   const endPeriod = async () => {
     await appendEvent.mutateAsync({ type: 'period_end', period: clock.period })
     if (clock.period >= settings.periods) {
       await appendEvent.mutateAsync({ type: 'game_end' })
-      await updateGame.mutateAsync({ status: 'final', finalizedAt: Date.now() })
-      await navigate({ to: '/games/$gameId/summary', params: { gameId } })
+      await finalize()
     }
+  }
+
+  /**
+   * Blows the final whistle whatever the clock says.
+   *
+   * Kindergarten games end when they end — the light goes, the referee has
+   * had enough, or half the team wants their snack. Whatever has been played
+   * is what gets saved.
+   */
+  const endGameNow = async () => {
+    if (clock.phase === 'running' || clock.phase === 'paused') {
+      await appendEvent.mutateAsync({ type: 'period_end', period: clock.period })
+    }
+    await appendEvent.mutateAsync({ type: 'game_end' })
+    await finalize()
+  }
+
+  const discardGame = async () => {
+    await deleteGame.mutateAsync(gameId)
+    await navigate({ to: '/' })
   }
 
   const label =
@@ -207,54 +236,63 @@ function LiveGame() {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          {clock.phase === 'pregame' || showBreak ? (
+        {/*
+          Three layers, in the order a coach reaches for them. Scoring is the
+          thing that happens without warning, so it sits closest to the score
+          it changes. The clock control is deliberate. Stoppage is rarest, and
+          furthest away.
+
+          Nobody can score before the referee starts the game, so until then
+          the only thing here is kick off.
+        */}
+        {clock.phase !== 'pregame' ? (
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => void startPeriod(upNext ?? 1)}
-              className="press flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-action text-[19px] font-bold"
+              aria-label="Add a goal for us"
+              onClick={() => appendEvent.mutate({ type: 'goal_us' })}
+              className="press flex h-14 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-white"
             >
-              <PlayIcon size={20} />
-              {clock.phase === 'pregame'
-                ? 'Kick off'
-                : `Start ${periodLabel(upNext ?? 2, settings.periods)}`}
+              <PlusIcon size={18} />
+              <span className="text-[17px] font-bold">Us</span>
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() =>
-                appendEvent.mutate({ type: clock.isRunning ? 'pause' : 'resume' })
-              }
-              className={`press flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl text-[19px] font-bold ${
-                clock.isRunning ? 'bg-white/12' : 'bg-pitch'
-              }`}
-            >
-              {clock.isRunning ? <PauseIcon /> : <PlayIcon />}
-              {clock.isRunning ? 'Pause' : 'Start'}
-            </button>
-          )}
-
-          {/*
-            The opponent's goal button sits beside the clock control and gets
-            room to be read at a glance. Stoppage time lives on its own row
-            below, because adding it is a considered act and scoring against
-            you is not.
-
-            Nobody can score before the referee starts the game, so until then
-            the only thing on this row is kick off.
-          */}
-          {clock.phase !== 'pregame' ? (
             <button
               type="button"
               aria-label="Add a goal for the other team"
               onClick={() => appendEvent.mutate({ type: 'goal_them' })}
-              className="press flex h-14 w-[118px] items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-salmon"
+              className="press flex h-14 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-salmon"
             >
               <PlusIcon size={18} />
-              <span className="text-[16px] font-bold">Them</span>
+              <span className="text-[17px] font-bold">Them</span>
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
+
+        {clock.phase === 'pregame' || showBreak ? (
+          <button
+            type="button"
+            onClick={() => void startPeriod(upNext ?? 1)}
+            className="press flex h-14 items-center justify-center gap-2 rounded-2xl bg-action text-[19px] font-bold"
+          >
+            <PlayIcon size={20} />
+            {clock.phase === 'pregame'
+              ? 'Kick off'
+              : `Start ${periodLabel(upNext ?? 2, settings.periods)}`}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              appendEvent.mutate({ type: clock.isRunning ? 'pause' : 'resume' })
+            }
+            className={`press flex h-14 items-center justify-center gap-2 rounded-2xl text-[19px] font-bold ${
+              clock.isRunning ? 'bg-white/12' : 'bg-pitch'
+            }`}
+          >
+            {clock.isRunning ? <PauseIcon /> : <PlayIcon />}
+            {clock.isRunning ? 'Pause' : 'Resume'}
+          </button>
+        )}
 
         {clock.phase === 'running' || clock.phase === 'paused' ? (
           <div className="flex gap-2">
@@ -297,7 +335,7 @@ function LiveGame() {
                     ? 'now tap who comes off'
                     : clock.phase === 'pregame'
                       ? 'tap a player to change the lineup'
-                      : 'tap a player to sub or score'}
+                      : 'tap a player, then who swaps with them'}
               </span>
             </div>
 
@@ -318,23 +356,6 @@ function LiveGame() {
               ))}
             </div>
 
-            {clock.phase !== 'pregame' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  appendEvent.mutate({ type: 'goal_us', playerId: selected })
-                  setSelected(null)
-                }}
-                className={`press flex h-[50px] items-center justify-center gap-2 rounded-2xl text-[17px] font-bold ${
-                  selectedIsField ? 'bg-action text-white' : 'bg-chip text-muted'
-                }`}
-              >
-                <BallIcon />
-                {selectedIsField
-                  ? `Goal by ${nameById.get(selected!) ?? 'them'}`
-                  : 'Goal for us · no scorer'}
-              </button>
-            ) : null}
           </section>
 
           <section className="mt-3.5 flex flex-col gap-2 px-5">
@@ -378,8 +399,8 @@ function LiveGame() {
 
       <div className="flex-1" />
 
-      {clock.phase === 'running' || clock.phase === 'paused' ? (
-        <div className="flex justify-center px-5 pt-4">
+      <div className="flex items-center justify-center gap-1 px-5 pt-4">
+        {clock.phase === 'running' || clock.phase === 'paused' ? (
           <button
             type="button"
             onClick={() => void endPeriod()}
@@ -387,9 +408,103 @@ function LiveGame() {
           >
             End {periodLabel(clock.period, settings.periods).toLowerCase()}
           </button>
-        </div>
+        ) : null}
+        <button
+          type="button"
+          aria-label="More options for this game"
+          onClick={() => setMenuOpen(true)}
+          className="press flex size-11 items-center justify-center rounded-xl text-muted"
+        >
+          <MoreIcon />
+        </button>
+      </div>
+
+      {menuOpen ? (
+        <GameMenu
+          canEnd={clock.phase !== 'pregame'}
+          onClose={() => setMenuOpen(false)}
+          onEndGame={endGameNow}
+          onDiscard={discardGame}
+        />
       ) : null}
     </Screen>
+  )
+}
+
+/**
+ * The way out of a game that should not have been started, or that stopped
+ * before the clock said so.
+ */
+function GameMenu({
+  canEnd,
+  onClose,
+  onEndGame,
+  onDiscard,
+}: {
+  canEnd: boolean
+  onClose: () => void
+  onEndGame: () => Promise<void>
+  onDiscard: () => Promise<void>
+}) {
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
+
+  return (
+    <div className="fixed inset-0 z-20 flex flex-col justify-end bg-ink/40" onClick={onClose}>
+      <div
+        className="flex flex-col gap-3 rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="cond text-[22px] font-bold">This game</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="press flex size-11 items-center justify-center rounded-xl bg-chip text-muted"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        {confirmingDiscard ? (
+          <>
+            <p className="text-[15px] leading-relaxed text-muted">
+              Throw this game away? The minutes everyone has played today go with it. This
+              cannot be undone.
+            </p>
+            <div className="flex gap-2.5">
+              <Button
+                tone="quiet"
+                className="flex-1"
+                onClick={() => setConfirmingDiscard(false)}
+              >
+                Keep it
+              </Button>
+              <Button tone="action" className="flex-1 !bg-loss" onClick={() => void onDiscard()}>
+                Discard
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            {canEnd ? (
+              <>
+                <Button tone="primary" onClick={() => void onEndGame()}>
+                  End the game now
+                </Button>
+                <p className="px-1 text-[13px] text-faint">
+                  Saves the game with whatever has been played so far, however much time
+                  is left on the clock.
+                </p>
+              </>
+            ) : null}
+            <Button tone="danger" onClick={() => setConfirmingDiscard(true)}>
+              Discard this game
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
