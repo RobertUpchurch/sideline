@@ -15,6 +15,7 @@ import {
   Screen,
   SectionLabel,
   TopBar,
+  dateInputClass,
   inputClass,
 } from '~/components/ui'
 
@@ -118,7 +119,7 @@ function NewGame() {
           <Field label="Date">
             <input
               type="date"
-              className={inputClass}
+              className={dateInputClass}
               value={date}
               onChange={(event) => setDate(event.target.value)}
             />

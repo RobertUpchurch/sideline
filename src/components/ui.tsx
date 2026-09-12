@@ -312,6 +312,9 @@ export function Field({
 export const inputClass =
   'h-14 w-full rounded-2xl border border-edge bg-card px-4 text-[17px] outline-none focus:border-pitch'
 
+/** A date field, with room on the right for the calendar mark drawn in CSS. */
+export const dateInputClass = `${inputClass} pr-12`
+
 // --- Icons -----------------------------------------------------------------
 // Drawn rather than imported so they scale, recolour and never load a font.
 

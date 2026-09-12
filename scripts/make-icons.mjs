@@ -12,16 +12,6 @@ const PITCH = [0x1b, 0x6b, 0x3a]
 const CREAM = [0xf7, 0xf6, 0xf1]
 const ORANGE = [0xe8, 0x64, 0x1b]
 
-/** Distance from a point to the nearest edge of a rounded square. */
-function roundedSquareAlpha(x, y, size, inset, radius) {
-  const min = inset
-  const max = size - inset
-  const cx = Math.min(Math.max(x, min + radius), max - radius)
-  const cy = Math.min(Math.max(y, min + radius), max - radius)
-  const distance = Math.hypot(x - cx, y - cy)
-  return clampEdge(radius - distance)
-}
-
 /** A one-pixel feather, which is all the antialiasing an icon needs. */
 function clampEdge(signedDistance) {
   return Math.min(1, Math.max(0, signedDistance + 0.5))
@@ -38,16 +28,23 @@ function mix(base, top, alpha) {
 /**
  * Draws the mark: a stopwatch face on pitch green. The hand points at ten past,
  * which reads as "running" at any size.
+ *
+ * Every icon is a full-bleed opaque square with square corners. This matters:
+ * iOS composites a home-screen icon's transparent pixels onto black before
+ * applying its own rounding, so an icon that rounds its own corners gets a dark
+ * ring around it. Both platforms mask the icon themselves; our job is to fill
+ * the square and keep the mark inside the safe area.
+ *
+ * `safeZone` is the fraction of the width kept clear at each edge. A maskable
+ * icon can be cropped to a circle, so it needs a wide margin; the plain icons
+ * are shown closer to as-drawn and can run nearer the edge.
  */
-function drawIcon(size, { maskable }) {
+function drawIcon(size, { safeZone }) {
   const pixels = Buffer.alloc(size * size * 4)
-  // A maskable icon must survive a circular crop, so the mark is drawn smaller.
-  const pad = maskable ? size * 0.18 : 0
-  const inset = maskable ? 0 : size * 0.06
-  const radius = maskable ? 0 : size * 0.22
+  const pad = size * safeZone
 
   const cx = size / 2
-  const cy = size / 2 + (maskable ? 0 : size * 0.012)
+  const cy = size / 2
   const faceRadius = (size - pad * 2) * 0.29
   const ringWidth = Math.max(2, size * 0.055)
   const stemWidth = Math.max(2, size * 0.05)
@@ -66,7 +63,6 @@ function drawIcon(size, { maskable }) {
       const py = y + 0.5
 
       let rgb = PITCH
-      let alpha = maskable ? 1 : roundedSquareAlpha(px, py, size, inset, radius)
 
       // Stopwatch stem, drawn before the face so the face sits on top.
       const stemTop = cy - faceRadius - stemHeight
@@ -99,7 +95,7 @@ function drawIcon(size, { maskable }) {
       pixels[index] = rgb[0]
       pixels[index + 1] = rgb[1]
       pixels[index + 2] = rgb[2]
-      pixels[index + 3] = Math.round(alpha * 255)
+      pixels[index + 3] = 255
     }
   }
 
@@ -162,14 +158,15 @@ function encodePng(size, pixels) {
 }
 
 const targets = [
-  { file: 'public/icon-192.png', size: 192, maskable: false },
-  { file: 'public/icon-512.png', size: 512, maskable: false },
-  { file: 'public/icon-maskable-512.png', size: 512, maskable: true },
-  { file: 'public/apple-touch-icon.png', size: 180, maskable: false },
+  { file: 'public/icon-192.png', size: 192, safeZone: 0.08 },
+  { file: 'public/icon-512.png', size: 512, safeZone: 0.08 },
+  { file: 'public/icon-maskable-512.png', size: 512, safeZone: 0.18 },
+  // iOS rounds this itself. Full bleed, no transparency, no corner radius.
+  { file: 'public/apple-touch-icon.png', size: 180, safeZone: 0.08 },
 ]
 
 for (const target of targets) {
-  const pixels = drawIcon(target.size, { maskable: target.maskable })
+  const pixels = drawIcon(target.size, { safeZone: target.safeZone })
   writeFileSync(target.file, encodePng(target.size, pixels))
   console.log(`wrote ${target.file} (${target.size}×${target.size})`)
 }
