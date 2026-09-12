@@ -29,8 +29,16 @@ function Share() {
     // narrow phone. An image scales to its container and can be long-pressed
     // and saved for a flyer.
     QRCode.toDataURL(origin, {
-      errorCorrectionLevel: 'H',
-      margin: 1,
+      // Four modules of quiet zone is what the spec asks for. At one, the
+      // finder patterns crowd the rounded corners of the card and the code
+      // reads as though it is spilling out of its box — and a scanner has
+      // less to lock onto.
+      margin: 4,
+      // Quartile recovery. For a URL this short it needs no more modules than
+      // the medium level, so the extra robustness is free — useful if a coach
+      // prints the code on a flyer. The highest level would cost four more
+      // modules a side for redundancy this will never need.
+      errorCorrectionLevel: 'Q',
       width: 640,
       color: { dark: '#101B14FF', light: '#FFFFFFFF' },
     })
@@ -78,7 +86,7 @@ function Share() {
           </p>
         </div>
 
-        <div className="aspect-square w-full max-w-[318px] rounded-3xl border-2 border-ink bg-white p-3.5">
+        <div className="aspect-square w-full max-w-[318px] rounded-3xl border-2 border-ink bg-white p-2">
           {qr ? (
             <img
               src={qr}
