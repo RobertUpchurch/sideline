@@ -1,14 +1,20 @@
 import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
+import { useLockPortrait } from '~/lib/orientation'
 
 export interface RouterContext {
   queryClient: QueryClient
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  component: Outlet,
+  component: Shell,
   notFoundComponent: NotFound,
 })
+
+function Shell() {
+  useLockPortrait()
+  return <Outlet />
+}
 
 function NotFound() {
   return (
