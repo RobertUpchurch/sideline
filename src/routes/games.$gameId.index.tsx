@@ -18,6 +18,7 @@ import {
   averageMs,
   band,
   benchOrder,
+  fieldOrder,
   lineupForNextPeriod,
   suggestLineup,
 } from '~/engine/fairness'
@@ -122,7 +123,10 @@ function LiveGame() {
   const notHere = players.filter(
     (player) => player.active && !times.some((time) => time.playerId === player.id),
   )
-  const field = times.filter((time) => time.onField)
+  // Busiest child first on the field, quietest first on the bench. The two
+  // lists then read as one queue: the top-left card and the top bench row are
+  // the swap the app would make.
+  const field = fieldOrder(times)
   const bench = benchOrder(times)
   const upNext = nextPeriod(clock, settings)
   const selectedIsField = selected !== null && field.some((t) => t.playerId === selected)
@@ -347,17 +351,17 @@ function LiveGame() {
         <>
           <section className="mt-3.5 flex flex-col gap-2 px-5">
             <div className="flex items-baseline justify-between px-1">
-              <h2 className="text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
-                On the field
+              <h2 className="shrink-0 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
+                On the field · most first
               </h2>
-              <span className="text-[13px] text-faint">
+              <span className="truncate text-[13px] text-faint">
                 {selectedIsField
                   ? 'now tap who comes on'
                   : selectedIsBench
                     ? 'now tap who comes off'
                     : clock.phase === 'pregame'
-                      ? 'tap a player to change the lineup'
-                      : 'tap a player, then who swaps with them'}
+                      ? 'tap to change'
+                      : 'tap two to swap'}
               </span>
             </div>
 
@@ -382,8 +386,8 @@ function LiveGame() {
 
           <section className="mt-3.5 flex flex-col gap-2 px-5">
             <div className="flex items-baseline justify-between px-1">
-              <h2 className="text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
-                Bench · least time first
+              <h2 className="shrink-0 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
+                Bench · least first
               </h2>
               <span className="tnum text-[13px] text-faint">
                 team avg {formatClock(average)}

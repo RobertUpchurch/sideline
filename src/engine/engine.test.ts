@@ -5,6 +5,7 @@ import {
   adjustedMs,
   averageMs,
   benchOrder,
+  fieldOrder,
   lineupForNextPeriod,
   playedMs,
   spreadMs,
@@ -256,6 +257,28 @@ describe('fairness', () => {
     expect(byId.d!.benchMs).toBe(6 * MIN)
     expect(byId.c!.benchMs).toBe(3 * MIN)
     expect(benchOrder(times)[0]!.playerId).toBe('d')
+  })
+
+  it('puts the busiest child at the top of the field, ready to come off', () => {
+    // The field reads top-down as who to take off next, so it mirrors the
+    // bench, which reads top-down as who to bring on.
+    const { events } = log()
+      .lineup(T0, ['a', 'b', 'c', 'd'])
+      .start(T0, 1)
+      .sub(T0 + 4 * MIN, 'e', 'c')
+      .sub(T0 + 6 * MIN, 'c', 'd')
+    const times = derivePlaytime(events, roster, T0 + 10 * MIN)
+    const byId = Object.fromEntries(times.map((t) => [t.playerId, t]))
+
+    // a and b never came off, c played four then came back at six, e came on
+    // at four and has been there since.
+    expect(byId.a!.totalMs).toBe(10 * MIN)
+    expect(byId.c!.totalMs).toBe(8 * MIN)
+    expect(byId.e!.totalMs).toBe(6 * MIN)
+
+    expect(fieldOrder(times).map((t) => t.playerId)).toEqual(['a', 'b', 'c', 'e'])
+    // The top of the field is exactly who the app would take off.
+    expect(fieldOrder(times)[0]!.playerId).toBe(suggestSwap(times)!.offPlayerId)
   })
 
   it('suggests taking off the busiest child for the quietest one', () => {
