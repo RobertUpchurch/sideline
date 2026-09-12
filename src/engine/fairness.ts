@@ -1,16 +1,29 @@
 import type { Id, PlayerTime } from './types'
 
-/** How far a player's time sits from the team average. */
-export function averageMs(times: readonly PlayerTime[]): number {
+/**
+ * Which figure a calculation should use.
+ *
+ * Deciding who plays next uses `adjustedMs`, so a child who arrived at
+ * halftime is not treated as though they had been sitting out all game.
+ * Reporting what happened uses `playedMs`, because a handicap is not minutes
+ * anybody actually spent on the field.
+ */
+export type TimePick = (time: PlayerTime) => number
+
+export const adjustedMs: TimePick = (time) => time.totalMs + time.creditMs
+export const playedMs: TimePick = (time) => time.totalMs
+
+/** The team's mean. Adjusted for late arrivals unless told otherwise. */
+export function averageMs(times: readonly PlayerTime[], pick: TimePick = adjustedMs): number {
   if (!times.length) return 0
-  return times.reduce((sum, time) => sum + time.totalMs, 0) / times.length
+  return times.reduce((sum, time) => sum + pick(time), 0) / times.length
 }
 
 /** The gap between the child who has played most and the one who has played least. */
-export function spreadMs(times: readonly PlayerTime[]): number {
+export function spreadMs(times: readonly PlayerTime[], pick: TimePick = adjustedMs): number {
   if (!times.length) return 0
-  const totals = times.map((time) => time.totalMs)
-  return Math.max(...totals) - Math.min(...totals)
+  const values = times.map(pick)
+  return Math.max(...values) - Math.min(...values)
 }
 
 export type FairnessBand = 'behind' | 'even' | 'ahead'
@@ -40,14 +53,14 @@ export function band(
 export function benchOrder(times: readonly PlayerTime[]): PlayerTime[] {
   return times
     .filter((time) => !time.onField)
-    .sort((a, b) => a.totalMs - b.totalMs || b.benchMs - a.benchMs)
+    .sort((a, b) => adjustedMs(a) - adjustedMs(b) || b.benchMs - a.benchMs)
 }
 
 /** Players on the field, longest current stint first, so the tired ones surface. */
 export function fieldOrder(times: readonly PlayerTime[]): PlayerTime[] {
   return times
     .filter((time) => time.onField)
-    .sort((a, b) => b.totalMs - a.totalMs || b.currentStintMs - a.currentStintMs)
+    .sort((a, b) => adjustedMs(b) - adjustedMs(a) || b.currentStintMs - a.currentStintMs)
 }
 
 export interface SuggestedSwap {
@@ -71,7 +84,7 @@ export function suggestSwap(times: readonly PlayerTime[]): SuggestedSwap | null 
 
   const comingOn = bench[0]!
   const comingOff = field[0]!
-  const gapMs = comingOff.totalMs - comingOn.totalMs
+  const gapMs = adjustedMs(comingOff) - adjustedMs(comingOn)
   if (gapMs <= 0) return null
 
   return { onPlayerId: comingOn.playerId, offPlayerId: comingOff.playerId, gapMs }
@@ -86,7 +99,7 @@ export function suggestLineup(
   fieldSize: number,
 ): Id[] {
   return [...times]
-    .sort((a, b) => a.totalMs - b.totalMs || b.benchMs - a.benchMs)
+    .sort((a, b) => adjustedMs(a) - adjustedMs(b) || b.benchMs - a.benchMs)
     .slice(0, Math.min(fieldSize, times.length))
     .map((time) => time.playerId)
 }
@@ -119,7 +132,7 @@ export function projectedCatchUpMs(
   remainingMs: number,
 ): number | null {
   if (!times.length || remainingMs <= 0) return null
-  const totals = times.map((time) => time.totalMs)
+  const totals = times.map(adjustedMs)
   const lowest = Math.min(...totals)
   const average = averageMs(times)
   if (average - lowest <= 0) return null

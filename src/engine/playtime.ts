@@ -120,11 +120,41 @@ function statusSince(
   return since
 }
 
+/** Children who arrived after kick off, and the handicap each was given. */
+export function lateArrivals(events: readonly GameEvent[]): Map<Id, { ts: number; creditMs: number }> {
+  const arrivals = new Map<Id, { ts: number; creditMs: number }>()
+  for (const event of events) {
+    if (event.type === 'player_joined' && !arrivals.has(event.playerId)) {
+      arrivals.set(event.playerId, { ts: event.ts, creditMs: event.creditMs })
+    }
+  }
+  return arrivals
+}
+
+/**
+ * Everyone taking part, in the order they joined the game.
+ *
+ * Derived rather than read off the game record so that undoing a late
+ * arrival actually removes them again.
+ */
+export function presentPlayerIds(
+  startingIds: readonly Id[],
+  events: readonly GameEvent[],
+): Id[] {
+  const ids = [...startingIds]
+  for (const playerId of lateArrivals(events).keys()) {
+    if (!ids.includes(playerId)) ids.push(playerId)
+  }
+  return ids
+}
+
 /**
  * Playing time for every available player, as of `now`.
  *
  * Time only accrues while the clock is running, so a substitution made during
- * halftime or a stoppage costs nobody anything.
+ * halftime or a stoppage costs nobody anything. A child who arrived late
+ * accrues nothing before they got there, and carries the handicap they were
+ * given separately from what they actually played.
  */
 export function derivePlaytime(
   events: readonly GameEvent[],
@@ -137,15 +167,22 @@ export function derivePlaytime(
   const totals = totalsByPlayer(segments, changes)
   const onField = changes.length ? changes[changes.length - 1]!.lineup : new Set<Id>()
   const firstRunTs = segments.length ? segments[0]!.start : null
-  const since = statusSince(changes, playerIds, firstRunTs)
+  const arrivals = lateArrivals(ordered)
+  const roster = presentPlayerIds(playerIds, ordered)
+  const since = statusSince(changes, roster, firstRunTs)
 
-  return playerIds.map((playerId) => {
+  return roster.map((playerId) => {
     const isOn = onField.has(playerId)
-    const sinceTs = since.get(playerId) ?? firstRunTs ?? now
+    const arrival = arrivals.get(playerId)
+    // A late arrival has not been sitting out since kick off; they have been
+    // sitting out since they walked up.
+    const baseline = arrival ? Math.max(since.get(playerId) ?? 0, arrival.ts) : since.get(playerId)
+    const sinceTs = baseline ?? firstRunTs ?? now
     const sinceMs = runningMsBetween(segments, sinceTs, now)
     return {
       playerId,
       totalMs: totals.get(playerId) ?? 0,
+      creditMs: arrival?.creditMs ?? 0,
       onField: isOn,
       currentStintMs: isOn ? sinceMs : 0,
       benchMs: isOn ? 0 : sinceMs,

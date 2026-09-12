@@ -1,6 +1,6 @@
 import { deriveScore, derivePlaytime } from './playtime'
 import { deriveClock } from './clock'
-import { averageMs, spreadMs } from './fairness'
+import { averageMs, playedMs, spreadMs } from './fairness'
 import type { Game, GameEvent, Id, Player, PlayerTime } from './types'
 
 export interface GameWithEvents {
@@ -36,8 +36,9 @@ export function summarizeGame({ game, events }: GameWithEvents): GameSummary {
     theirScore,
     result: ourScore > theirScore ? 'win' : ourScore < theirScore ? 'loss' : 'draw',
     times,
-    averageMs: averageMs(times),
-    spreadMs: spreadMs(times),
+    // A report says what was played, so a late arrival's handicap is left out.
+    averageMs: averageMs(times, playedMs),
+    spreadMs: spreadMs(times, playedMs),
   }
 }
 

@@ -33,6 +33,12 @@ welcome pull request.
 The rules of the game live in `src/engine` as plain TypeScript. They take an event log and
 a moment in time, and return what was true. No React, no database, no side effects.
 
+There is one distinction worth knowing before you touch the fairness code. A child who
+arrives late is credited the team average so they do not jump the queue, and that credit
+is kept apart from the minutes they actually played. `adjustedMs` decides who plays next;
+`playedMs` is what every report shows. Mixing them up would quietly inflate a season
+average with time nobody spent on the field.
+
 **Anything that changes what the clock says, who is on the field, how long a child has
 played, or who should come on next belongs in the engine, with a test.** Those tests are
 the reason the awkward cases stay correct: a phone that slept through half of the second

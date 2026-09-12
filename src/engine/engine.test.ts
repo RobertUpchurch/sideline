@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { deriveClock, nextPeriod, runSegments } from './clock'
 import { currentLineup, deriveScore, derivePlaytime } from './playtime'
 import {
+  adjustedMs,
+  averageMs,
   benchOrder,
   lineupForNextPeriod,
+  playedMs,
   spreadMs,
   suggestLineup,
   suggestSwap,
@@ -42,6 +45,8 @@ function log() {
       push(ts, { type: 'stoppage_added', period, ms }),
     sub: (ts: number, onPlayerId: string, offPlayerId: string) =>
       push(ts, { type: 'sub', onPlayerId, offPlayerId }),
+    joined: (ts: number, playerId: string, creditMs: number) =>
+      push(ts, { type: 'player_joined', playerId, creditMs }),
     goalUs: (ts: number) => push(ts, { type: 'goal_us' }),
     goalThem: (ts: number) => push(ts, { type: 'goal_them' }),
     gameEnd: (ts: number) => push(ts, { type: 'game_end' }),
@@ -266,6 +271,7 @@ describe('fairness', () => {
     const times = roster.map((playerId) => ({
       playerId,
       totalMs: 5 * MIN,
+      creditMs: 0,
       onField: playerId !== 'e',
       currentStintMs: 0,
       benchMs: 0,
@@ -294,6 +300,66 @@ describe('fairness', () => {
 
     // A half-finished choice is not a lineup; fall back rather than mislead.
     expect(lineupForNextPeriod(['a', 'b'], times, 4)).toEqual(suggestLineup(times, 4))
+  })
+
+  it('slots a late arrival into the middle rather than the front of the queue', () => {
+    // Four play the first eight minutes. A fifth child turns up and is
+    // credited the eight minutes the others have had.
+    const { events } = log().lineup(T0, ['a', 'b', 'c', 'd']).start(T0, 1)
+    const before = derivePlaytime(events, ['a', 'b', 'c', 'd'], T0 + 8 * MIN)
+    const credit = averageMs(before)
+    expect(credit).toBe(8 * MIN)
+
+    const builder = log()
+    builder.lineup(T0, ['a', 'b', 'c', 'd'])
+    builder.start(T0, 1)
+    builder.joined(T0 + 8 * MIN, 'e', credit)
+
+    const after = derivePlaytime(builder.events, ['a', 'b', 'c', 'd'], T0 + 8 * MIN)
+    const late = after.find((t) => t.playerId === 'e')!
+
+    // On the field they have played nothing, but they count as level.
+    expect(late.totalMs).toBe(0)
+    expect(late.creditMs).toBe(8 * MIN)
+    expect(adjustedMs(late)).toBe(8 * MIN)
+
+    // So they do not jump the whole bench the moment they arrive.
+    expect(benchOrder(after).map((t) => t.playerId)).toEqual(['e'])
+    expect(suggestSwap(after)).toBeNull()
+  })
+
+  it('does not count a late arrival as having sat out since kick off', () => {
+    const { events } = log()
+      .lineup(T0, ['a', 'b', 'c', 'd'])
+      .start(T0, 1)
+      .joined(T0 + 8 * MIN, 'e', 8 * MIN)
+    const times = derivePlaytime(events, ['a', 'b', 'c', 'd'], T0 + 12 * MIN)
+    const late = times.find((t) => t.playerId === 'e')!
+    expect(late.benchMs).toBe(4 * MIN)
+  })
+
+  it('reports what a late arrival actually played, not their handicap', () => {
+    const { events } = log()
+      .lineup(T0, ['a', 'b', 'c', 'd'])
+      .start(T0, 1)
+      .joined(T0 + 8 * MIN, 'e', 8 * MIN)
+      .sub(T0 + 8 * MIN, 'e', 'a')
+    const times = derivePlaytime(events, ['a', 'b', 'c', 'd'], T0 + 14 * MIN)
+    const late = times.find((t) => t.playerId === 'e')!
+
+    expect(late.totalMs).toBe(6 * MIN)
+    expect(adjustedMs(late)).toBe(14 * MIN)
+    // The season record must never inherit the handicap.
+    expect(averageMs(times, playedMs)).toBeLessThan(averageMs(times))
+  })
+
+  it('forgets a late arrival entirely when the join is undone', () => {
+    const builder = log().lineup(T0, ['a', 'b', 'c', 'd']).start(T0, 1)
+    builder.joined(T0 + 8 * MIN, 'e', 8 * MIN)
+    expect(derivePlaytime(builder.events, ['a', 'b', 'c', 'd'], T0 + 9 * MIN)).toHaveLength(5)
+
+    builder.events.pop()
+    expect(derivePlaytime(builder.events, ['a', 'b', 'c', 'd'], T0 + 9 * MIN)).toHaveLength(4)
   })
 
   it('keeps five children within one sub interval over a full game', () => {

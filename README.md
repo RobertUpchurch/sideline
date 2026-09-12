@@ -14,6 +14,9 @@ parent asking why their kid is still on the bench.
   by who has played least, and a substitution is two taps.
 - **Suggests the next swap.** The child who has played most comes off for the child who
   has played least. Accept it or ignore it.
+- **Handles the kid who turns up at minute eight.** Add them mid-game and they start on
+  the team average, so they wait their turn instead of hogging the rest of the match.
+  Their report still shows only the minutes they actually played.
 - **Keeps score.** One button for your goals, one for theirs. Goals belong to the team,
   not to a five-year-old in a scramble.
 - **Lets you stop.** End a game early when the light goes, or throw away one you started

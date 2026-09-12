@@ -14,6 +14,7 @@ import { MAX_STOPPAGE_CHIPS } from '~/db/schema'
 import { breakLabel, deriveClock, nextPeriod, periodLabel } from '~/engine/clock'
 import { derivePlaytime, deriveScore } from '~/engine/playtime'
 import {
+  adjustedMs,
   averageMs,
   band,
   benchOrder,
@@ -37,7 +38,7 @@ import {
   TimeBar,
   UndoIcon,
 } from '~/components/ui'
-import type { Id, PlayerTime } from '~/engine/types'
+import type { Id, Player, PlayerTime } from '~/engine/types'
 
 export const Route = createFileRoute('/games/$gameId/')({
   loader: async ({ context, params }) => {
@@ -74,6 +75,7 @@ function LiveGame() {
   const [selected, setSelected] = useState<Id | null>(null)
   const [breakLineup, setBreakLineup] = useState<Id[] | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [addingLate, setAddingLate] = useState(false)
 
   const settings = game?.settings
   const clock = useMemo(
@@ -115,7 +117,11 @@ function LiveGame() {
 
   const [us, them] = deriveScore(events)
   const average = averageMs(times)
-  const maxTotal = Math.max(1, ...times.map((time) => time.totalMs))
+  const maxTotal = Math.max(1, ...times.map(adjustedMs))
+  // Anyone on the team sheet who is not in this game yet, in case they walk up.
+  const notHere = players.filter(
+    (player) => player.active && !times.some((time) => time.playerId === player.id),
+  )
   const field = times.filter((time) => time.onField)
   const bench = benchOrder(times)
   const upNext = nextPeriod(clock, settings)
@@ -171,6 +177,22 @@ function LiveGame() {
   const discardGame = async () => {
     await deleteGame.mutateAsync(gameId)
     await navigate({ to: '/' })
+  }
+
+  /**
+   * Brings a child into a game that has already started.
+   *
+   * They are credited whatever the rest of the team has played so far. Start
+   * them on zero and they would sit at the top of the bench for the remainder
+   * and finish with far more time than anyone who was there on time.
+   */
+  const addLatePlayer = async (playerId: Id) => {
+    setAddingLate(false)
+    await appendEvent.mutateAsync({
+      type: 'player_joined',
+      playerId,
+      creditMs: Math.round(averageMs(times)),
+    })
   }
 
   const label =
@@ -393,6 +415,17 @@ function LiveGame() {
                 </div>
               </div>
             )}
+
+            {notHere.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setAddingLate(true)}
+                className="press flex h-12 items-center justify-center gap-2 rounded-2xl border-1.5 border-dashed border-edge font-semibold text-pitch"
+              >
+                <PlusIcon size={18} />
+                Someone turned up late
+              </button>
+            ) : null}
           </section>
         </>
       )}
@@ -419,6 +452,15 @@ function LiveGame() {
         </button>
       </div>
 
+      {addingLate ? (
+        <LateArrivalSheet
+          players={notHere}
+          creditMs={Math.round(averageMs(times))}
+          onClose={() => setAddingLate(false)}
+          onAdd={addLatePlayer}
+        />
+      ) : null}
+
       {menuOpen ? (
         <GameMenu
           canEnd={clock.phase !== 'pregame'}
@@ -428,6 +470,78 @@ function LiveGame() {
         />
       ) : null}
     </Screen>
+  )
+}
+
+/**
+ * Picking a child who has just walked up.
+ *
+ * The handicap is spelled out rather than applied silently, because a coach
+ * who sees a newcomer appear on eight minutes without explanation will assume
+ * the app is wrong.
+ */
+function LateArrivalSheet({
+  players,
+  creditMs,
+  onClose,
+  onAdd,
+}: {
+  players: Player[]
+  creditMs: number
+  onClose: () => void
+  onAdd: (playerId: Id) => Promise<void>
+}) {
+  return (
+    <div className="fixed inset-0 z-20 flex flex-col justify-end bg-ink/40" onClick={onClose}>
+      <div
+        className="flex max-h-[80dvh] flex-col gap-3 overflow-y-auto rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="cond text-[22px] font-bold">Who turned up?</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="press flex size-11 items-center justify-center rounded-xl bg-chip text-muted"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        <p className="text-[14px] leading-relaxed text-muted">
+          {creditMs > 0 ? (
+            <>
+              They will start on{' '}
+              <span className="tnum font-semibold text-ink">{formatClock(creditMs)}</span>, what
+              the rest of the team has played so far, so they wait their turn like everyone
+              else. Their report will still show only the minutes they actually play.
+            </>
+          ) : (
+            <>Nobody has played any time yet, so they simply join the bench.</>
+          )}
+        </p>
+
+        <div className="flex flex-col gap-2 pb-1">
+          {players.map((player) => (
+            <button
+              key={player.id}
+              type="button"
+              onClick={() => void onAdd(player.id)}
+              className="press flex h-14 items-center gap-3 rounded-2xl border border-edge bg-card px-4 text-left"
+            >
+              <span className="cond tnum flex size-9 shrink-0 items-center justify-center rounded-full bg-chip text-[16px] font-bold text-muted">
+                {player.number ?? '–'}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[17px] font-semibold">
+                {player.name}
+              </span>
+              <PlusIcon size={20} />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -508,6 +622,20 @@ function GameMenu({
   )
 }
 
+/** Says why a child's figure is higher than the minutes they have been here. */
+function LateMark({ on = false }: { on?: boolean }) {
+  return (
+    <span
+      title="Arrived late, credited the team average so far"
+      className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-bold tracking-wide uppercase ${
+        on ? 'bg-white/25 text-white' : 'bg-chip text-muted'
+      }`}
+    >
+      late
+    </span>
+  )
+}
+
 function clockCaption(
   clock: ReturnType<typeof deriveClock>,
   periods: number,
@@ -554,19 +682,22 @@ function FieldCard({
       }`}
     >
       <span className="flex items-center justify-between gap-2">
-        <span
-          className={`min-w-0 truncate text-[16px] font-bold ${
-            selected ? 'text-white' : 'text-ink'
-          }`}
-        >
-          {name}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span
+            className={`min-w-0 truncate text-[16px] font-bold ${
+              selected ? 'text-white' : 'text-ink'
+            }`}
+          >
+            {name}
+          </span>
+          {time.creditMs > 0 ? <LateMark on={selected} /> : null}
         </span>
         <span
           className={`cond tnum shrink-0 text-[19px] font-bold ${
             selected ? 'text-white' : 'text-ink'
           }`}
         >
-          {formatClock(time.totalMs)}
+          {formatClock(adjustedMs(time))}
         </span>
       </span>
       <span className="flex items-center justify-between gap-2">
@@ -577,14 +708,16 @@ function FieldCard({
           <span className="h-1.5 w-[84px] overflow-hidden rounded-full bg-white/25">
             <span
               className="block h-1.5 rounded-full bg-white"
-              style={{ width: `${Math.max(2, Math.round((100 * time.totalMs) / maxTotal))}%` }}
+              style={{
+                width: `${Math.max(2, Math.round((100 * adjustedMs(time)) / maxTotal))}%`,
+              }}
             />
           </span>
         ) : (
           <TimeBar
-            value={time.totalMs}
+            value={adjustedMs(time)}
             max={maxTotal}
-            tone={band(time.totalMs, average)}
+            tone={band(adjustedMs(time), average)}
             className="w-[84px]"
           />
         )}
@@ -610,8 +743,8 @@ function BenchRow({
   armed: boolean
   onTap: () => void
 }) {
-  const delta = Math.round(time.totalMs - average)
-  const tone = band(time.totalMs, average)
+  const delta = Math.round(adjustedMs(time) - average)
+  const tone = band(adjustedMs(time), average)
   const deltaColor =
     tone === 'behind' ? 'text-amber' : tone === 'ahead' ? 'text-action' : 'text-pitch'
 
@@ -625,14 +758,17 @@ function BenchRow({
       }`}
     >
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[16px] font-semibold">{name}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[16px] font-semibold">{name}</span>
+          {time.creditMs > 0 ? <LateMark /> : null}
+        </span>
         <span className="tnum text-[12px] text-faint">
           sitting {formatClock(time.benchMs)}
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end">
         <span className="cond tnum text-[19px] leading-tight font-bold">
-          {formatClock(time.totalMs)}
+          {formatClock(adjustedMs(time))}
         </span>
         <span className={`tnum text-[12px] font-semibold ${deltaColor}`}>
           {formatDelta(delta)} vs avg
@@ -663,7 +799,9 @@ function BreakLineup({
   onChange: (next: Id[]) => void
 }) {
   const chosenSet = new Set(chosen)
-  const ordered = [...times].sort((a, b) => a.totalMs - b.totalMs || b.benchMs - a.benchMs)
+  const ordered = [...times].sort(
+    (a, b) => adjustedMs(a) - adjustedMs(b) || b.benchMs - a.benchMs,
+  )
 
   const toggle = (playerId: Id) => {
     if (chosenSet.has(playerId)) onChange(chosen.filter((id) => id !== playerId))
@@ -705,7 +843,7 @@ function BreakLineup({
                 <span
                   className={`tnum text-[12px] ${picked ? 'text-pitch-pale' : 'text-faint'}`}
                 >
-                  {formatClock(time.totalMs)} played
+                  {formatClock(adjustedMs(time))} played
                 </span>
               </span>
               {picked ? (

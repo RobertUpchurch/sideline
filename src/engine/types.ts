@@ -68,6 +68,7 @@ export type GameEventType =
   | 'sub'
   | 'goal_us'
   | 'goal_them'
+  | 'player_joined'
   | 'game_end'
 
 interface BaseEvent {
@@ -95,6 +96,18 @@ export type GameEvent = BaseEvent &
      */
     | { type: 'goal_us' }
     | { type: 'goal_them' }
+    /*
+     * A child who was marked away turns up after the game has started.
+     *
+     * `creditMs` is the handicap the coach granted at that moment — normally
+     * the average the rest of the team has played so far. Without it a late
+     * arrival shows as zero minutes, sits at the top of the bench for the rest
+     * of the game and ends up with far more time than anyone else.
+     *
+     * It is stored rather than recomputed because it is a decision, not a
+     * measurement: the same kind of fact as a substitution.
+     */
+    | { type: 'player_joined'; playerId: Id; creditMs: number }
     | { type: 'game_end' }
   )
 
@@ -136,8 +149,19 @@ export interface ClockState {
 
 export interface PlayerTime {
   playerId: Id
-  /** Total time on the field this game, counting only a running clock. */
+  /**
+   * Time actually spent on the field, counting only a running clock.
+   *
+   * This is the honest figure, and the one every report uses. It never
+   * includes a late arrival's handicap.
+   */
   totalMs: number
+  /**
+   * Handicap granted on arriving late. Zero for everyone who was there at
+   * kick off. Added to `totalMs` when deciding who plays next, never when
+   * reporting what was played.
+   */
+  creditMs: number
   onField: boolean
   /** Running time since this player last came on. Zero when on the bench. */
   currentStintMs: number

@@ -3,7 +3,14 @@ import { useQuery } from '@tanstack/react-query'
 import { eventsQuery, gameQuery, playersQuery, useAppendEvent } from '~/db/queries'
 import { deriveClock } from '~/engine/clock'
 import { derivePlaytime } from '~/engine/playtime'
-import { averageMs, band, projectedCatchUpMs, spreadMs, suggestSwap } from '~/engine/fairness'
+import {
+  adjustedMs,
+  averageMs,
+  band,
+  projectedCatchUpMs,
+  spreadMs,
+  suggestSwap,
+} from '~/engine/fairness'
 import { useNow } from '~/lib/now'
 import { formatClock } from '~/lib/time'
 import { Button, Card, Screen, SectionLabel, SwapIcon, TopBar } from '~/components/ui'
@@ -39,11 +46,15 @@ function Fairness() {
   const clock = deriveClock(events, game.settings, now)
   const nameById = new Map(players.map((player) => [player.id, player.name]))
   const average = averageMs(times)
-  const ordered = [...times].sort((a, b) => b.totalMs - a.totalMs)
+  const ordered = [...times].sort((a, b) => adjustedMs(b) - adjustedMs(a))
   // Scale to the busiest child rather than to the whole game, so the
   // differences between children stay legible from the first minute.
-  const maxScale = Math.max(1, ...times.map((time) => time.totalMs))
+  const maxScale = Math.max(1, ...times.map(adjustedMs))
   const swap = suggestSwap(times)
+  const timeFor = (playerId: string) => {
+    const time = times.find((entry) => entry.playerId === playerId)
+    return time ? adjustedMs(time) : 0
+  }
 
   const periodsLeft = Math.max(0, game.settings.periods - clock.period)
   const remainingMs = clock.remainingMs + periodsLeft * game.settings.periodMs
@@ -77,24 +88,32 @@ function Fairness() {
               }}
             />
             {ordered.map((time) => {
-              const tone = band(time.totalMs, average)
+              const tone = band(adjustedMs(time), average)
               const color =
                 tone === 'behind' ? 'bg-amber' : tone === 'ahead' ? 'bg-action' : 'bg-pitch'
               const textColor =
                 tone === 'behind' ? 'text-amber' : tone === 'ahead' ? 'text-action' : 'text-pitch'
               return (
                 <div key={time.playerId} className="flex items-center gap-2.5">
-                  <span className="w-[68px] shrink-0 truncate text-[15px] font-semibold">
-                    {nameById.get(time.playerId) ?? 'Player'}
+                  <span className="flex w-[68px] shrink-0 items-baseline gap-1 truncate text-[15px] font-semibold">
+                    <span className="truncate">{nameById.get(time.playerId) ?? 'Player'}</span>
+                    {time.creditMs > 0 ? (
+                      <span
+                        title="Arrived late, credited the team average so far"
+                        className="text-[10px] font-bold tracking-wide text-faint uppercase"
+                      >
+                        late
+                      </span>
+                    ) : null}
                   </span>
                   <span className={`cond tnum w-11 shrink-0 text-right text-[17px] font-bold ${textColor}`}>
-                    {formatClock(time.totalMs)}
+                    {formatClock(adjustedMs(time))}
                   </span>
                   <span className="relative h-3.5 flex-1 overflow-hidden rounded-full bg-divider">
                     <span
                       className={`absolute inset-y-0 left-0 rounded-full ${color}`}
                       style={{
-                        width: `${Math.max(2, Math.round((100 * time.totalMs) / maxScale))}%`,
+                        width: `${Math.max(2, Math.round((100 * adjustedMs(time)) / maxScale))}%`,
                       }}
                     />
                   </span>
@@ -130,10 +149,7 @@ function Fairness() {
                     {nameById.get(swap.onPlayerId) ?? 'Player'}
                   </span>
                   <span className="tnum text-[13px] text-slate">
-                    {formatClock(
-                      times.find((t) => t.playerId === swap.onPlayerId)?.totalMs ?? 0,
-                    )}{' '}
-                    played
+                    {formatClock(timeFor(swap.onPlayerId))} played
                   </span>
                 </span>
                 <span className="shrink-0 text-slate">
@@ -147,10 +163,7 @@ function Fairness() {
                     {nameById.get(swap.offPlayerId) ?? 'Player'}
                   </span>
                   <span className="tnum text-[13px] text-slate">
-                    {formatClock(
-                      times.find((t) => t.playerId === swap.offPlayerId)?.totalMs ?? 0,
-                    )}{' '}
-                    played
+                    {formatClock(timeFor(swap.offPlayerId))} played
                   </span>
                 </span>
               </div>
