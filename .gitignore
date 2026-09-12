@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.DS_Store
+*.local
+.vercel
+coverage
+tsconfig.app.tsbuildinfo
+tsconfig.node.tsbuildinfo
+.tanstack

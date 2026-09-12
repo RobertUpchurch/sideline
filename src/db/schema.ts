@@ -1,0 +1,110 @@
+import Dexie, { type EntityTable } from 'dexie'
+import type {
+  DraftGameEvent,
+  Game,
+  GameEvent,
+  Id,
+  Player,
+  Team,
+  TeamSettings,
+} from '~/engine/types'
+
+/**
+ * Everything lives in this browser, in IndexedDB. There is no server, no
+ * account and no network call after the app is installed. A coach's roster is
+ * their own business.
+ */
+export const db = new Dexie('sideline') as Dexie & {
+  teams: EntityTable<Team, 'id'>
+  players: EntityTable<Player, 'id'>
+  games: EntityTable<Game, 'id'>
+  events: EntityTable<GameEvent, 'id'>
+}
+
+db.version(1).stores({
+  teams: 'id, createdAt',
+  players: 'id, teamId, createdAt',
+  games: 'id, teamId, date, status, [teamId+status]',
+  events: 'id, gameId, [gameId+seq], ts',
+})
+
+export const DEFAULT_SETTINGS: TeamSettings = {
+  periods: 2,
+  periodMs: 15 * 60_000,
+  breakMs: 5 * 60_000,
+  fieldSize: 4,
+  stoppageIncrementsMs: [30_000, 60_000, 120_000],
+}
+
+export const TEAM_COLORS = [
+  '#1B6B3A',
+  '#2557B8',
+  '#B8402F',
+  '#D9A106',
+  '#6B3FA0',
+  '#101B14',
+] as const
+
+export function newId(): Id {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+/**
+ * Appends an event to a game's log.
+ *
+ * The sequence number is assigned inside the transaction so two taps in the
+ * same millisecond still end up in a definite order.
+ */
+export async function appendEvent(
+  gameId: Id,
+  event: DraftGameEvent,
+): Promise<GameEvent> {
+  return db.transaction('rw', db.events, async () => {
+    const last = await db.events.where('[gameId+seq]').between([gameId, 0], [gameId, Infinity]).last()
+    const { ts, ...rest } = event
+    const record = {
+      ...rest,
+      id: newId(),
+      gameId,
+      seq: (last?.seq ?? 0) + 1,
+      ts: ts ?? Date.now(),
+    } as GameEvent
+    await db.events.add(record)
+    return record
+  })
+}
+
+/** Removes the most recent event, which is how undo works during a game. */
+export async function popLastEvent(gameId: Id): Promise<GameEvent | null> {
+  return db.transaction('rw', db.events, async () => {
+    const last = await db.events
+      .where('[gameId+seq]')
+      .between([gameId, 0], [gameId, Infinity])
+      .last()
+    if (!last) return null
+    await db.events.delete(last.id)
+    return last
+  })
+}
+
+export async function deleteGame(gameId: Id): Promise<void> {
+  await db.transaction('rw', db.games, db.events, async () => {
+    await db.events.where('gameId').equals(gameId).delete()
+    await db.games.delete(gameId)
+  })
+}
+
+export async function deleteTeam(teamId: Id): Promise<void> {
+  await db.transaction('rw', db.teams, db.players, db.games, db.events, async () => {
+    const games = await db.games.where('teamId').equals(teamId).toArray()
+    for (const game of games) {
+      await db.events.where('gameId').equals(game.id).delete()
+    }
+    await db.games.where('teamId').equals(teamId).delete()
+    await db.players.where('teamId').equals(teamId).delete()
+    await db.teams.delete(teamId)
+  })
+}

@@ -1,0 +1,92 @@
+@import 'tailwindcss';
+
+/*
+ * The sideline palette: warm off-white ground, pitch green, and one orange
+ * reserved for the action you want to hit without looking. Chosen to stay
+ * readable in direct sunlight on a Saturday morning.
+ */
+@theme {
+  --color-ground: #f7f6f1;
+  --color-card: #ffffff;
+  --color-edge: #e3e4dc;
+  --color-divider: #eeefe8;
+  --color-chip: #f1f2ec;
+  --color-ink: #101b14;
+  --color-muted: #5f6e64;
+  --color-faint: #8a948d;
+  --color-pitch: #1b6b3a;
+  --color-pitch-deep: #14522c;
+  --color-pitch-mint: #e4f1e8;
+  --color-pitch-pale: #cfe3d5;
+  --color-action: #e8641b;
+  --color-amber: #b7791a;
+  --color-slate: #a7b3aa;
+  --color-salmon: #f2b8ae;
+  --color-loss: #b8402f;
+
+  --font-sans: 'Barlow', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue',
+    sans-serif;
+  --font-cond: 'Barlow Condensed', 'Arial Narrow', ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background: var(--color-ground);
+  /* Stop iOS bumping the type size when the phone is turned sideways. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* No accidental zoom from a fast double tap on a substitution. */
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Numbers that do not jiggle as a clock counts down. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.cond {
+  font-family: var(--font-cond);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Every tappable thing shrinks a little, so a tap in bright sun still reads. */
+.press {
+  transition: transform 80ms ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press {
+    transition: none;
+  }
+  .press:active {
+    transform: none;
+  }
+}
+
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* iOS zooms any field whose type is under 16px when it gets focus. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
