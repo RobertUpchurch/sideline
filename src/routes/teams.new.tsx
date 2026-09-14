@@ -51,7 +51,13 @@ function NewTeam() {
           periodMs: value.periodMinutes * 60_000,
         },
       })
-      await navigate({ to: '/teams/$teamId/roster', params: { teamId: team.id } })
+      // Replace: this form has served its purpose, and going back to it and
+      // submitting again would create a second team.
+      await navigate({
+        to: '/teams/$teamId/roster',
+        params: { teamId: team.id },
+        replace: true,
+      })
     },
   })
 

@@ -40,6 +40,7 @@ import {
   SwapIcon,
   TimeBar,
   UndoIcon,
+  WhistleIcon,
 } from '~/components/ui'
 import type { Id, Player, PlayerTime } from '~/engine/types'
 
@@ -275,20 +276,28 @@ function LiveGame() {
           <Link
             to="/games/$gameId/fairness"
             params={{ gameId }}
-            className="flex h-11 items-center px-3 font-semibold text-pitch"
+            className="flex h-11 items-center px-2.5 font-semibold text-pitch"
           >
             Fair time
           </Link>
+          <button
+            type="button"
+            aria-label="More options for this game"
+            onClick={() => setMenuOpen(true)}
+            className="press flex size-11 items-center justify-center rounded-xl text-muted"
+          >
+            <MoreIcon />
+          </button>
         </div>
       </header>
 
       {/*
-        The clock, the field and the bench scroll together; the header above
-        and the whistle row below stay put. Two scroll regions on one screen
-        would be worse than one, and the coach reading the clock is not the
-        person you want to make scroll to reach the pause button.
+        Everything below the header scrolls as one. Two scroll regions on one
+        screen would be worse than one, and nothing is pinned along the bottom
+        because on a phone held at arm's length in the sun, a row of
+        once-a-half controls is not worth the four bench rows it costs.
       */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-1">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-2">
         <section className="mx-5 flex flex-col gap-2.5 rounded-3xl bg-ink p-4 text-white">
           <div className="flex items-end justify-between gap-2">
             <div className="flex min-w-0 flex-col">
@@ -373,6 +382,24 @@ function LiveGame() {
               {clock.isRunning ? 'Pause' : 'Resume'}
             </HapticButton>
           )}
+
+          {(clock.phase === 'running' || clock.phase === 'paused') &&
+          clock.remainingMs <= 0 ? (
+            /*
+             * The period's time is up, so this is now the thing the coach is
+             * waiting to do. Before the clock runs out it lives in the menu
+             * instead: ending a half early happens, but not often enough to
+             * hold a place on screen for the other fourteen minutes.
+             */
+            <button
+              type="button"
+              onClick={() => void endPeriod()}
+              className="press flex h-12 items-center justify-center gap-2 rounded-2xl bg-white/12 text-[17px] font-bold"
+            >
+              <WhistleIcon />
+              End {periodLabel(clock.period, settings.periods).toLowerCase()}
+            </button>
+          ) : null}
 
           {clock.phase === 'running' || clock.phase === 'paused' ? (
             <div className="flex gap-2">
@@ -488,26 +515,6 @@ function LiveGame() {
         />
       ) : null}
 
-      <div className="flex items-center justify-center gap-1 px-5 pt-4">
-        {clock.phase === 'running' || clock.phase === 'paused' ? (
-          <button
-            type="button"
-            onClick={() => void endPeriod()}
-            className="press flex h-11 items-center rounded-xl px-4 font-semibold text-muted"
-          >
-            End {periodLabel(clock.period, settings.periods).toLowerCase()}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          aria-label="More options for this game"
-          onClick={() => setMenuOpen(true)}
-          className="press flex size-11 items-center justify-center rounded-xl text-muted"
-        >
-          <MoreIcon />
-        </button>
-      </div>
-
       {addingLate ? (
         <LateArrivalSheet
           players={notHere}
@@ -520,6 +527,21 @@ function LiveGame() {
       {menuOpen ? (
         <GameMenu
           canEnd={clock.phase !== 'pregame'}
+          /*
+           * Only worth offering while a period is under way, and only when it
+           * is not the last one — ending the last period is ending the game,
+           * which this menu already asks about directly. Once the clock has
+           * run out it is on the game screen, so it drops out of here rather
+           * than being in two places at once.
+           */
+          endPeriodLabel={
+            (clock.phase === 'running' || clock.phase === 'paused') &&
+            clock.period < settings.periods &&
+            clock.remainingMs > 0
+              ? periodLabel(clock.period, settings.periods).toLowerCase()
+              : null
+          }
+          onEndPeriod={endPeriod}
           onClose={() => setMenuOpen(false)}
           onEndGame={endGameNow}
           onDiscard={discardGame}
@@ -658,11 +680,15 @@ function LateArrivalSheet({
  */
 function GameMenu({
   canEnd,
+  endPeriodLabel,
+  onEndPeriod,
   onClose,
   onEndGame,
   onDiscard,
 }: {
   canEnd: boolean
+  endPeriodLabel: string | null
+  onEndPeriod: () => Promise<void>
   onClose: () => void
   onEndGame: () => Promise<void>
   onDiscard: () => Promise<void>
@@ -708,9 +734,20 @@ function GameMenu({
           </>
         ) : (
           <>
+            {endPeriodLabel ? (
+              <>
+                <Button tone="primary" onClick={() => void onEndPeriod()}>
+                  End {endPeriodLabel} now
+                </Button>
+                <p className="px-1 text-[13px] text-faint">
+                  Blows the whistle early and starts the break. Once the clock runs out
+                  this appears on the game screen instead.
+                </p>
+              </>
+            ) : null}
             {canEnd ? (
               <>
-                <Button tone="primary" onClick={() => void onEndGame()}>
+                <Button tone="quiet" onClick={() => void onEndGame()}>
                   End the game now
                 </Button>
                 <p className="px-1 text-[13px] text-faint">

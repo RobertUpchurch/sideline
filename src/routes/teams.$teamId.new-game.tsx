@@ -103,7 +103,13 @@ function NewGame() {
       presentPlayerIds: present.map((player) => player.id),
       lineup,
     })
-    await navigate({ to: '/games/$gameId', params: { gameId: game.id } })
+    // Replace, so that going back from the game cannot reach the setup form
+    // and kick a second game off while this one is still running.
+    await navigate({
+      to: '/games/$gameId',
+      params: { gameId: game.id },
+      replace: true,
+    })
   }
 
   return (

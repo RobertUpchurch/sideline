@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import type { ReactNode, Ref } from 'react'
 import { haptic } from '~/lib/haptics'
 
@@ -78,6 +78,7 @@ export function TopBar({
   backLabel?: string
   action?: ReactNode
 }) {
+  const router = useRouter()
   return (
     <header className="flex h-12 shrink-0 items-center justify-between gap-2 px-2">
       <div className="flex min-w-[72px] justify-start">
@@ -85,6 +86,25 @@ export function TopBar({
           <Link
             to={back.to}
             params={back.params}
+            /*
+             * Back means back.
+             *
+             * This was a plain link, which pushed a new entry — so tapping it
+             * five times left five entries behind, the phone's own back
+             * gesture then walked forwards through them, and the screen slid
+             * in from the right as though it were somewhere new.
+             *
+             * Real history when there is any. `back.to` is the fallback for
+             * when there is none, which happens when the app is opened
+             * straight onto this screen: then it replaces this entry rather
+             * than stacking on it, so back still cannot loop.
+             */
+            replace
+            onClick={(event) => {
+              if (!router.history.canGoBack()) return
+              event.preventDefault()
+              router.history.back()
+            }}
             className="flex h-11 items-center gap-0.5 rounded-xl px-2 font-semibold text-pitch"
           >
             <ChevronLeftIcon />
