@@ -59,6 +59,8 @@ function applyUpdate(): void {
  */
 async function gameInProgress(): Promise<boolean> {
   try {
+    // The same question `liveGameQuery` asks, deliberately without going
+    // through React Query: this runs before the app has mounted.
     return (await db.games.where('status').equals('live').count()) > 0
   } catch {
     return false
