@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { haptic } from '~/lib/haptics'
 
 /**
@@ -118,13 +118,32 @@ export function SectionLabel({
 export function Card({
   children,
   className = '',
+  ref,
 }: {
   children: ReactNode
   className?: string
+  ref?: Ref<HTMLDivElement>
 }) {
   return (
-    <div className={`rounded-2xl border border-edge bg-card ${className}`}>{children}</div>
+    <div ref={ref} className={`rounded-2xl border border-edge bg-card ${className}`}>
+      {children}
+    </div>
   )
+}
+
+/**
+ * Brings something into view the moment it appears, as a callback ref.
+ *
+ * Confirmations here replace the button that opened them, in place, at the
+ * bottom of a screen that scrolls — and a question with two buttons under it
+ * is a good deal taller than the button it replaced. Without this, tapping
+ * "delete this team" can leave the actual choice just below the fold, which
+ * on a destructive action is the worst possible place for it.
+ */
+export function revealOnMount(el: HTMLDivElement | null): void {
+  if (!el) return
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  el.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' })
 }
 
 export function List({ children }: { children: ReactNode }) {

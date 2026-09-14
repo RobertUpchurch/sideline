@@ -16,6 +16,7 @@ import {
   SectionLabel,
   ShareIcon,
   TopBar,
+  revealOnMount,
 } from '~/components/ui'
 
 export const Route = createFileRoute('/games/$gameId/summary')({
@@ -187,7 +188,7 @@ function Summary() {
           </Button>
 
           {confirmingDelete ? (
-            <Card className="flex flex-col gap-3 border-loss p-4">
+            <Card ref={revealOnMount} className="flex flex-col gap-3 border-loss p-4">
               <p className="text-[14px] text-muted">
                 Delete this game? It disappears from the season and from everyone's
                 averages. This cannot be undone.

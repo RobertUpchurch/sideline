@@ -175,7 +175,7 @@ function PlayerSheet({
   return (
     <div className="fixed inset-0 z-20 flex flex-col justify-end bg-ink/40" onClick={onClose}>
       <div
-        className="rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        className="max-h-[85%] overflow-y-auto overscroll-contain rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

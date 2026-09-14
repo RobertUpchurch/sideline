@@ -98,9 +98,13 @@
    * A long press on a control should do nothing, rather than select the word
    * inside it or offer to look it up. Text the coach might actually want to
    * copy — a player's name, a score — is left alone.
+   *
+   * Deliberately not `label`: a `<label>` here wraps the field it names, and
+   * this property inherits, so a form field inside one would refuse to let
+   * anyone select what they had typed. `HapticButton` carries
+   * `role="button"` and so is covered by the second selector.
    */
   button,
-  label,
   [role='button'] {
     -webkit-user-select: none;
     user-select: none;

@@ -14,6 +14,7 @@ import {
   Stepper,
   TopBar,
   inputClass,
+  revealOnMount,
 } from '~/components/ui'
 import type { TeamSettings } from '~/engine/types'
 
@@ -211,7 +212,7 @@ function Settings() {
 
         <div className="flex flex-col gap-2 pb-2">
           {confirmingDelete ? (
-            <Card className="flex flex-col gap-3 border-loss p-4">
+            <Card ref={revealOnMount} className="flex flex-col gap-3 border-loss p-4">
               <p className="font-semibold">Delete {team.name}?</p>
               <p className="text-[14px] text-muted">
                 This removes the roster and every saved game for this team. It cannot be

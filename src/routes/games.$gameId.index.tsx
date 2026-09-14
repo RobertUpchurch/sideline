@@ -601,7 +601,7 @@ function LateArrivalSheet({
   return (
     <div className="fixed inset-0 z-20 flex flex-col justify-end bg-ink/40" onClick={onClose}>
       <div
-        className="flex max-h-[80dvh] flex-col gap-3 overflow-y-auto rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        className="flex max-h-[80%] flex-col gap-3 overflow-y-auto overscroll-contain rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -672,7 +672,7 @@ function GameMenu({
   return (
     <div className="fixed inset-0 z-20 flex flex-col justify-end bg-ink/40" onClick={onClose}>
       <div
-        className="flex flex-col gap-3 rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        className="flex max-h-[80%] flex-col gap-3 overflow-y-auto overscroll-contain rounded-t-3xl bg-ground px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between">
