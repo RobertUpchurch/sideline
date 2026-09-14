@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Link, createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
   eventsQuery,
@@ -30,6 +30,7 @@ import { formatClock, formatDelta } from '~/lib/time'
 import {
   Button,
   CheckIcon,
+  HapticButton,
   CloseIcon,
   MoreIcon,
   PauseIcon,
@@ -45,12 +46,13 @@ import type { Id, Player, PlayerTime } from '~/engine/types'
 export const Route = createFileRoute('/games/$gameId/')({
   loader: async ({ context, params }) => {
     const game = await context.queryClient.ensureQueryData(gameQuery(params.gameId))
-    if (game) {
-      await Promise.all([
-        context.queryClient.ensureQueryData(eventsQuery(params.gameId)),
-        context.queryClient.ensureQueryData(playersQuery(game.teamId)),
-      ])
-    }
+    // A link to a game that has been deleted — a bookmark, or a forward
+    // swipe into history — should say so rather than render nothing.
+    if (!game) throw notFound()
+    await Promise.all([
+      context.queryClient.ensureQueryData(eventsQuery(params.gameId)),
+      context.queryClient.ensureQueryData(playersQuery(game.teamId)),
+    ])
     return game
   },
   component: LiveGame,
@@ -187,7 +189,14 @@ function LiveGame() {
 
   const finalize = async () => {
     await updateGame.mutateAsync({ status: 'final', finalizedAt: Date.now() })
-    await navigate({ to: '/games/$gameId/summary', params: { gameId } })
+    // The whistle has gone, so this screen has ceased to exist. Replacing it
+    // means the back gesture from the summary reaches the teams list instead
+    // of a clock for a game that is already over.
+    await navigate({
+      to: '/games/$gameId/summary',
+      params: { gameId },
+      replace: true,
+    })
   }
 
   const endPeriod = async () => {
@@ -215,7 +224,8 @@ function LiveGame() {
 
   const discardGame = async () => {
     await deleteGame.mutateAsync(gameId)
-    await navigate({ to: '/' })
+    // Deleted, so nothing here is worth keeping in history.
+    await navigate({ to: '/', replace: true })
   }
 
   /**
@@ -272,194 +282,203 @@ function LiveGame() {
         </div>
       </header>
 
-      <section className="mx-5 flex flex-col gap-2.5 rounded-3xl bg-ink p-4 text-white">
-        <div className="flex items-end justify-between gap-2">
-          <div className="flex min-w-0 flex-col">
-            <span
-              className={`cond tnum text-[60px] leading-[0.9] font-extrabold tracking-tight ${
-                clock.phase === 'break'
-                  ? 'text-pitch-pale'
-                  : clock.remainingMs <= 60_000 && clock.phase !== 'pregame'
-                    ? 'text-salmon'
-                    : 'text-white'
-              }`}
-            >
-              {formatClock(clock.phase === 'break' ? clock.breakRemainingMs : clock.remainingMs)}
-            </span>
-            <span className="tnum truncate text-[13px] text-slate">
-              {clockCaption(clock, settings.periods)}
-            </span>
-          </div>
-          <div className="cond tnum flex shrink-0 items-baseline gap-1.5 pb-1">
-            <span className="text-[40px] leading-none font-extrabold">{us}</span>
-            <span className="text-[24px] font-semibold text-slate">–</span>
-            <span className="text-[40px] leading-none font-extrabold text-salmon">{them}</span>
-          </div>
-        </div>
-
-        {/*
-          Three layers, in the order a coach reaches for them. Scoring is the
-          thing that happens without warning, so it sits closest to the score
-          it changes. The clock control is deliberate. Stoppage is rarest, and
-          furthest away.
-
-          Nobody can score before the referee starts the game, so until then
-          the only thing here is kick off.
-        */}
-        {clock.phase !== 'pregame' ? (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              aria-label="Add a goal for us"
-              onClick={() => appendEvent.mutate({ type: 'goal_us' })}
-              className="press flex h-14 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-white"
-            >
-              <PlusIcon size={18} />
-              <span className="text-[17px] font-bold">Us</span>
-            </button>
-            <button
-              type="button"
-              aria-label="Add a goal for the other team"
-              onClick={() => appendEvent.mutate({ type: 'goal_them' })}
-              className="press flex h-14 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-salmon"
-            >
-              <PlusIcon size={18} />
-              <span className="text-[17px] font-bold">Them</span>
-            </button>
-          </div>
-        ) : null}
-
-        {clock.phase === 'pregame' || showBreak ? (
-          <button
-            type="button"
-            onClick={() => void startPeriod(upNext ?? 1)}
-            className="press flex h-14 items-center justify-center gap-2 rounded-2xl bg-action text-[19px] font-bold"
-          >
-            <PlayIcon size={20} />
-            {clock.phase === 'pregame'
-              ? 'Kick off'
-              : `Start ${periodLabel(upNext ?? 2, settings.periods)}`}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() =>
-              appendEvent.mutate({ type: clock.isRunning ? 'pause' : 'resume' })
-            }
-            className={`press flex h-14 items-center justify-center gap-2 rounded-2xl text-[19px] font-bold ${
-              clock.isRunning ? 'bg-white/12' : 'bg-pitch'
-            }`}
-          >
-            {clock.isRunning ? <PauseIcon /> : <PlayIcon />}
-            {clock.isRunning ? 'Pause' : 'Resume'}
-          </button>
-        )}
-
-        {clock.phase === 'running' || clock.phase === 'paused' ? (
-          <div className="flex gap-2">
-            {settings.stoppageIncrementsMs.slice(0, MAX_STOPPAGE_CHIPS).map((ms) => (
-              <button
-                key={ms}
-                type="button"
-                aria-label={`Add ${formatClock(ms)} of stoppage time`}
-                onClick={() =>
-                  appendEvent.mutate({ type: 'stoppage_added', period: clock.period, ms })
-                }
-                className="press cond tnum flex h-12 flex-1 items-center justify-center rounded-xl bg-white/12 text-[19px] font-bold"
+      {/*
+        The clock, the field and the bench scroll together; the header above
+        and the whistle row below stay put. Two scroll regions on one screen
+        would be worse than one, and the coach reading the clock is not the
+        person you want to make scroll to reach the pause button.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-1">
+        <section className="mx-5 flex flex-col gap-2.5 rounded-3xl bg-ink p-4 text-white">
+          <div className="flex items-end justify-between gap-2">
+            <div className="flex min-w-0 flex-col">
+              <span
+                className={`cond tnum text-[60px] leading-[0.9] font-extrabold tracking-tight ${
+                  clock.phase === 'break'
+                    ? 'text-pitch-pale'
+                    : clock.remainingMs <= 60_000 && clock.phase !== 'pregame'
+                      ? 'text-salmon'
+                      : 'text-white'
+                }`}
               >
-                +{stoppageLabel(ms)}
-              </button>
-            ))}
+                {formatClock(clock.phase === 'break' ? clock.breakRemainingMs : clock.remainingMs)}
+              </span>
+              <span className="tnum truncate text-[13px] text-slate">
+                {clockCaption(clock, settings.periods)}
+              </span>
+            </div>
+            <div className="cond tnum flex shrink-0 items-baseline gap-1.5 pb-1">
+              <span className="text-[40px] leading-none font-extrabold">{us}</span>
+              <span className="text-[24px] font-semibold text-slate">–</span>
+              <span className="text-[40px] leading-none font-extrabold text-salmon">{them}</span>
+            </div>
           </div>
-        ) : null}
-      </section>
 
-      {showBreak ? (
-        <BreakLineup
-          times={times}
-          nameById={nameById}
-          fieldSize={settings.fieldSize}
-          chosen={breakLineup ?? suggestLineup(times, settings.fieldSize)}
-          onChange={setBreakLineup}
-        />
-      ) : (
-        <>
-          <section className="mt-3.5 flex flex-col gap-2 px-5">
-            <div className="flex items-baseline justify-between px-1">
-              <h2 className="shrink-0 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
-                On the field · most first
-              </h2>
-              <span className="truncate text-[13px] text-faint">
-                {comingOff.size > 0 ? 'now pick who comes on' : 'tap anyone coming off'}
-              </span>
-            </div>
+          {/*
+            Three layers, in the order a coach reaches for them. Scoring is the
+            thing that happens without warning, so it sits closest to the score
+            it changes. The clock control is deliberate. Stoppage is rarest, and
+            furthest away.
 
-            <div className="grid grid-cols-2 gap-2.5">
-              {field.map((time) => (
-                <FieldCard
-                  key={time.playerId}
-                  time={time}
-                  name={nameById.get(time.playerId) ?? 'Player'}
-                  selected={comingOff.has(time.playerId)}
-                  average={average}
-                  maxTotal={maxTotal}
-                  onTap={() => toggle(time.playerId, comingOff, setComingOff)}
-                />
-              ))}
-            </div>
-
-          </section>
-
-          <section className="mt-3.5 flex flex-col gap-2 px-5">
-            <div className="flex items-baseline justify-between px-1">
-              <h2 className="shrink-0 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
-                Bench · least first
-              </h2>
-              <span className="tnum text-[13px] text-faint">
-                team avg {formatClock(average)}
-              </span>
-            </div>
-
-            {bench.length === 0 ? (
-              <p className="rounded-2xl border border-edge bg-card p-4 text-[14px] text-muted">
-                Everyone who turned up is on the field.
-              </p>
-            ) : (
-              <div className="overflow-hidden rounded-2xl border border-edge bg-card">
-                <div className="flex flex-col divide-y divide-divider">
-                  {bench.map((time, index) => (
-                    <BenchRow
-                      key={time.playerId}
-                      time={time}
-                      name={nameById.get(time.playerId) ?? 'Player'}
-                      average={average}
-                      selected={comingOn.has(time.playerId)}
-                      highlighted={
-                        comingOff.size > comingOn.size && index < comingOff.size - comingOn.size
-                      }
-                      armed={comingOff.size > 0}
-                      onTap={() => toggle(time.playerId, comingOn, setComingOn)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {notHere.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setAddingLate(true)}
-                className="press flex h-12 items-center justify-center gap-2 rounded-2xl border-1.5 border-dashed border-edge font-semibold text-pitch"
+            Nobody can score before the referee starts the game, so until then
+            the only thing here is kick off.
+          */}
+          {clock.phase !== 'pregame' ? (
+            <div className="flex gap-2">
+              <HapticButton
+                label="Add a goal for us"
+                onTap={() => appendEvent.mutate({ type: 'goal_us' })}
+                className="press flex h-14 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-white"
               >
                 <PlusIcon size={18} />
-                Someone turned up late
-              </button>
-            ) : null}
-          </section>
-        </>
-      )}
+                <span className="text-[17px] font-bold">Us</span>
+              </HapticButton>
+              <HapticButton
+                label="Add a goal for the other team"
+                onTap={() => appendEvent.mutate({ type: 'goal_them' })}
+                className="press flex h-14 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/12 text-salmon"
+              >
+                <PlusIcon size={18} />
+                <span className="text-[17px] font-bold">Them</span>
+              </HapticButton>
+            </div>
+          ) : null}
 
-      <div className="flex-1" />
+          {clock.phase === 'pregame' || showBreak ? (
+            <HapticButton
+              label={
+                clock.phase === 'pregame'
+                  ? 'Kick off'
+                  : `Start ${periodLabel(upNext ?? 2, settings.periods)}`
+              }
+              onTap={() => void startPeriod(upNext ?? 1)}
+              className="press flex h-14 items-center justify-center gap-2 rounded-2xl bg-action text-[19px] font-bold"
+            >
+              <PlayIcon size={20} />
+              {clock.phase === 'pregame'
+                ? 'Kick off'
+                : `Start ${periodLabel(upNext ?? 2, settings.periods)}`}
+            </HapticButton>
+          ) : (
+            <HapticButton
+              label={clock.isRunning ? 'Pause the clock' : 'Resume the clock'}
+              onTap={() =>
+                appendEvent.mutate({ type: clock.isRunning ? 'pause' : 'resume' })
+              }
+              className={`press flex h-14 items-center justify-center gap-2 rounded-2xl text-[19px] font-bold ${
+                clock.isRunning ? 'bg-white/12' : 'bg-pitch'
+              }`}
+            >
+              {clock.isRunning ? <PauseIcon /> : <PlayIcon />}
+              {clock.isRunning ? 'Pause' : 'Resume'}
+            </HapticButton>
+          )}
+
+          {clock.phase === 'running' || clock.phase === 'paused' ? (
+            <div className="flex gap-2">
+              {settings.stoppageIncrementsMs.slice(0, MAX_STOPPAGE_CHIPS).map((ms) => (
+                <button
+                  key={ms}
+                  type="button"
+                  aria-label={`Add ${formatClock(ms)} of stoppage time`}
+                  onClick={() =>
+                    appendEvent.mutate({ type: 'stoppage_added', period: clock.period, ms })
+                  }
+                  className="press cond tnum flex h-12 flex-1 items-center justify-center rounded-xl bg-white/12 text-[19px] font-bold"
+                >
+                  +{stoppageLabel(ms)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        {showBreak ? (
+          <BreakLineup
+            times={times}
+            nameById={nameById}
+            fieldSize={settings.fieldSize}
+            chosen={breakLineup ?? suggestLineup(times, settings.fieldSize)}
+            onChange={setBreakLineup}
+          />
+        ) : (
+          <>
+            <section className="mt-3.5 flex flex-col gap-2 px-5">
+              <div className="flex items-baseline justify-between px-1">
+                <h2 className="shrink-0 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
+                  On the field · most first
+                </h2>
+                <span className="truncate text-[13px] text-faint">
+                  {comingOff.size > 0 ? 'now pick who comes on' : 'tap anyone coming off'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                {field.map((time) => (
+                  <FieldCard
+                    key={time.playerId}
+                    time={time}
+                    name={nameById.get(time.playerId) ?? 'Player'}
+                    selected={comingOff.has(time.playerId)}
+                    average={average}
+                    maxTotal={maxTotal}
+                    onTap={() => toggle(time.playerId, comingOff, setComingOff)}
+                  />
+                ))}
+              </div>
+
+            </section>
+
+            <section className="mt-3.5 flex flex-col gap-2 px-5">
+              <div className="flex items-baseline justify-between px-1">
+                <h2 className="shrink-0 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
+                  Bench · least first
+                </h2>
+                <span className="tnum text-[13px] text-faint">
+                  team avg {formatClock(average)}
+                </span>
+              </div>
+
+              {bench.length === 0 ? (
+                <p className="rounded-2xl border border-edge bg-card p-4 text-[14px] text-muted">
+                  Everyone who turned up is on the field.
+                </p>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-edge bg-card">
+                  <div className="flex flex-col divide-y divide-divider">
+                    {bench.map((time, index) => (
+                      <BenchRow
+                        key={time.playerId}
+                        time={time}
+                        name={nameById.get(time.playerId) ?? 'Player'}
+                        average={average}
+                        selected={comingOn.has(time.playerId)}
+                        highlighted={
+                          comingOff.size > comingOn.size && index < comingOff.size - comingOn.size
+                        }
+                        armed={comingOff.size > 0}
+                        onTap={() => toggle(time.playerId, comingOn, setComingOn)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {notHere.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setAddingLate(true)}
+                  className="press flex h-12 items-center justify-center gap-2 rounded-2xl border-1.5 border-dashed border-edge font-semibold text-pitch"
+                >
+                  <PlusIcon size={18} />
+                  Someone turned up late
+                </button>
+              ) : null}
+            </section>
+          </>
+        )}
+
+      </div>
 
       {comingOff.size > 0 || comingOn.size > 0 ? (
         <SubBar
@@ -514,9 +533,10 @@ function LiveGame() {
  * The pending substitution, and the button that commits it.
  *
  * A whole line going off at once is the common case in this age group, not the
- * exception, so nothing is applied until the coach says so. It sits fixed at
- * the bottom because the bench it refers to is usually scrolled past by the
- * time the selection is finished, and it is kept to a single row because
+ * exception, so nothing is applied until the coach says so. It sits at the
+ * bottom of the frame, outside the part that scrolls, because the bench it
+ * refers to is usually scrolled past by the time the selection is finished,
+ * and it is kept to a single row because
  * everything it would otherwise spell out is already visible: the chosen
  * players are highlighted in the lists right above it.
  *
@@ -544,18 +564,18 @@ function SubBar({
       : `Pick ${-shortOn} more coming off`
 
   return (
-    <div className="sticky bottom-0 z-10 mt-2 bg-ground/95 px-5 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur">
-      <button
-        type="button"
+    <div className="z-10 mt-2 bg-ground/95 px-5 pt-2 pb-1 backdrop-blur">
+      <HapticButton
+        label={label}
         disabled={!balanced}
-        onClick={() => void onApply()}
+        onTap={() => void onApply()}
         className={`press flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[17px] font-bold ${
           balanced ? 'bg-pitch text-white' : 'bg-chip text-muted'
         }`}
       >
         {balanced ? <SwapIcon size={18} /> : null}
         {label}
-      </button>
+      </HapticButton>
     </div>
   )
 }

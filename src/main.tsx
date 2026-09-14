@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
+import { watchNavDirection } from '~/lib/nav'
+import { keepUpToDate } from '~/lib/updates'
 import './styles.css'
 
 /**
@@ -28,13 +30,22 @@ const router = createRouter({
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
   scrollRestoration: true,
+  // Screens slide rather than blink. Which way they slide is worked out from
+  // the history index — see lib/nav.ts. Where the browser has no view
+  // transitions, navigation simply happens with no animation, which is a
+  // perfectly good outcome and not worth a polyfill.
+  defaultViewTransition: true,
 })
+
+watchNavDirection(router)
 
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router
   }
 }
+
+keepUpToDate()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

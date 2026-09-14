@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { eventsQuery, gameQuery, playersQuery, useDeleteGame } from '~/db/queries'
 import { summarizeGame } from '~/engine/reports'
@@ -8,6 +8,7 @@ import { gameCsv, offerFile } from '~/lib/transfer'
 import { formatClock, formatDate, formatDelta } from '~/lib/time'
 import { DataTable, type Columns } from '~/components/DataTable'
 import {
+  Body,
   Button,
   Card,
   LinkButton,
@@ -20,12 +21,13 @@ import {
 export const Route = createFileRoute('/games/$gameId/summary')({
   loader: async ({ context, params }) => {
     const game = await context.queryClient.ensureQueryData(gameQuery(params.gameId))
-    if (game) {
-      await Promise.all([
-        context.queryClient.ensureQueryData(eventsQuery(params.gameId)),
-        context.queryClient.ensureQueryData(playersQuery(game.teamId)),
-      ])
-    }
+    // A link to a game that has been deleted — a bookmark, or a forward
+    // swipe into history — should say so rather than render nothing.
+    if (!game) throw notFound()
+    await Promise.all([
+      context.queryClient.ensureQueryData(eventsQuery(params.gameId)),
+      context.queryClient.ensureQueryData(playersQuery(game.teamId)),
+    ])
     return game
   },
   component: Summary,
@@ -138,7 +140,7 @@ function Summary() {
         backLabel="Done"
       />
 
-      <main className="flex flex-1 flex-col gap-4 px-5 pt-1">
+      <Body className="gap-4 px-5 pt-1">
         <div className="flex flex-col items-center gap-1.5 rounded-3xl bg-pitch px-5 py-5 text-white">
           <p className="text-[14px] text-pitch-pale">
             vs {game.opponent} · {formatDate(game.date)}
@@ -203,7 +205,9 @@ function Summary() {
                   className="flex-1 !bg-loss"
                   onClick={async () => {
                     await deleteGame.mutateAsync(gameId)
-                    await navigate({ to: '/' })
+                    // The game this screen describes is gone; take its
+                    // place in history rather than stacking on top of it.
+                    await navigate({ to: '/', replace: true })
                   }}
                 >
                   Delete
@@ -221,7 +225,7 @@ function Summary() {
             · {game.settings.fieldSize} on the field
           </p>
         </div>
-      </main>
+      </Body>
     </Screen>
   )
 }

@@ -4,8 +4,42 @@ import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
+
+const pkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
+) as { version: string }
+
+/**
+ * Which build this is, stamped in at compile time and shown on the about
+ * screen.
+ *
+ * An installed app can be months behind the site it came from, so "which
+ * version are you running?" is the first question worth asking when a coach
+ * reports something odd — and the only honest answer is one the app can read
+ * off itself. Vercel does not ship a `.git` directory, hence the environment
+ * variable first.
+ */
+function buildRef(): string {
+  const fromHost = process.env.VERCEL_GIT_COMMIT_SHA
+  if (fromHost) return fromHost.slice(0, 7)
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+  } catch {
+    return 'local'
+  }
+}
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_REF__: JSON.stringify(buildRef()),
+  },
   resolve: {
     alias: { '~': fileURLToPath(new URL('./src', import.meta.url)) },
   },
@@ -15,6 +49,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered by hand in `src/lib/updates.ts`, which needs the
+      // registration object to check for a new version when the app comes
+      // back to the foreground. Letting the plugin inject its own as well
+      // would register the worker twice.
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],

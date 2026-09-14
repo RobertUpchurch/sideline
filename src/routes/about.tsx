@@ -3,6 +3,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { importTeam } from '~/lib/transfer'
 import {
+  Body,
   Button,
   Card,
   ChevronRightIcon,
@@ -42,7 +43,7 @@ function About() {
     <Screen>
       <TopBar title="Install & about" back={{ to: '/' }} />
 
-      <main className="flex flex-1 flex-col gap-5 px-5 pt-1">
+      <Body className="gap-5 px-5 pt-1">
         <Card className="flex flex-col gap-3.5 p-4">
           <div className="flex items-center gap-2.5">
             <span className="text-pitch">
@@ -143,10 +144,19 @@ function About() {
 
         <div className="flex-1" />
 
-        <p className="pb-1 text-center text-[12px] text-faint">
+        <p className="text-center text-[12px] text-faint">
           Sideline · MIT licence · no tracking, no analytics, no accounts
         </p>
-      </main>
+
+        {/*
+          An installed app can be a long way behind the site it came from, and
+          a coach cannot tell by looking. This is the line to read back when
+          something is not behaving.
+        */}
+        <p className="tnum pb-1 text-center text-[12px] text-faint">
+          v{__APP_VERSION__} · {__BUILD_REF__}
+        </p>
+      </Body>
     </Screen>
   )
 }

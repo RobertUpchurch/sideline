@@ -37,6 +37,22 @@
 }
 
 @layer base {
+  /*
+   * The document never scrolls. Every screen scrolls its own region instead.
+   *
+   * In an installed iOS app a scrollable document settles a few pixels taller
+   * than the viewport, which shows as the whole app sitting very slightly
+   * scrolled — a strip of bare background above the header that will not go
+   * away, and a page that will not quite return to the top. Taking the
+   * scroll away from the document removes the problem at the source.
+   */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
   html {
     background: var(--color-ground);
     /* Stop iOS bumping the type size when the phone is turned sideways. */
@@ -62,7 +78,32 @@
   button {
     font: inherit;
     color: inherit;
+  }
+
+  /*
+   * No grey flash on tap, anywhere. The `.press` class below is the
+   * replacement: taking the highlight away without putting something back
+   * leaves nothing at all acknowledging a tap until the next screen arrives,
+   * which is exactly what makes a quick web app feel slow.
+   */
+  a,
+  button,
+  label,
+  [role='button'],
+  [role='switch'] {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /*
+   * A long press on a control should do nothing, rather than select the word
+   * inside it or offer to look it up. Text the coach might actually want to
+   * copy — a player's name, a score — is left alone.
+   */
+  button,
+  label,
+  [role='button'] {
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   input,
@@ -136,12 +177,78 @@
   transform: scale(0.97);
 }
 
+/*
+ * Screens that slide, rather than blink.
+ *
+ * `data-nav` is stamped on the document before each navigation by
+ * `lib/nav.ts`, because a view transition only sees one DOM replacing another
+ * and cannot tell forwards from backwards on its own.
+ */
+::view-transition {
+  /*
+   * Anything the two snapshots do not cover between them shows straight
+   * through to what is behind the page. During a slide that is a pale sliver
+   * moving across the screen, right where the eye already is.
+   */
+  background-color: var(--color-ground);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  /*
+   * The default blend makes the overlapping half of a slide look washed out,
+   * as though both screens were translucent.
+   */
+  mix-blend-mode: normal;
+}
+
+/* Forwards: the new screen covers the old one, which stays put. */
+html[data-nav='push']::view-transition-old(root) {
+  animation: none;
+}
+html[data-nav='push']::view-transition-new(root) {
+  animation: slide-from-right 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 1;
+}
+
+/* Back: the old screen gets out of the way and reveals the one beneath. */
+html[data-nav='pop']::view-transition-new(root) {
+  animation: none;
+}
+html[data-nav='pop']::view-transition-old(root) {
+  animation: slide-to-right 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 1;
+}
+
+@keyframes slide-from-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-to-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .press {
     transition: none;
   }
   .press:active {
     transform: none;
+  }
+
+  /*
+   * No movement, and no cross-fade either: the next screen is simply there.
+   * Every animation has to degrade to the finished state rather than to
+   * nothing, which for a transition means letting it complete at once.
+   */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 

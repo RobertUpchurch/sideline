@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod'
@@ -11,6 +11,7 @@ import {
   useUpdatePlayer,
 } from '~/db/queries'
 import {
+  Body,
   Button,
   Card,
   CloseIcon,
@@ -27,11 +28,15 @@ import {
 import type { Player } from '~/engine/types'
 
 export const Route = createFileRoute('/teams/$teamId/roster')({
-  loader: ({ context, params }) =>
-    Promise.all([
+  loader: async ({ context, params }) => {
+    const [team] = await Promise.all([
       context.queryClient.ensureQueryData(teamQuery(params.teamId)),
       context.queryClient.ensureQueryData(playersQuery(params.teamId)),
-    ]),
+    ])
+    // Same for a team that has been deleted.
+    if (!team) throw notFound()
+    return team
+  },
   component: Roster,
 })
 
@@ -56,7 +61,7 @@ function Roster() {
     <Screen>
       <TopBar title="Roster" back={{ to: '/' }} />
 
-      <main className="flex flex-1 flex-col gap-3 px-5 pt-1">
+      <Body className="gap-3 px-5 pt-1">
         {players.length === 0 ? (
           <EmptyState
             title="No players yet"
@@ -94,7 +99,7 @@ function Roster() {
           <PlusIcon size={22} />
           Add player
         </Button>
-      </main>
+      </Body>
 
       {adding ? <PlayerSheet teamId={teamId} onClose={() => setAdding(false)} /> : null}
       {editing ? (

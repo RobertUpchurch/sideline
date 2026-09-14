@@ -5,6 +5,7 @@ import { summarizeGame } from '~/engine/reports'
 import { db } from '~/db/schema'
 import { formatClock, formatDate } from '~/lib/time'
 import {
+  Body,
   Card,
   ChevronRightIcon,
   EmptyState,
@@ -45,7 +46,7 @@ function Home() {
         </Link>
       </header>
 
-      <main className="flex flex-1 flex-col gap-4 px-5 pt-1">
+      <Body className="gap-4 px-5 pt-1">
         {liveGame ? (
           <Link
             to="/games/$gameId"
@@ -86,7 +87,7 @@ function Home() {
             New team
           </LinkButton>
         ) : null}
-      </main>
+      </Body>
 
       <footer className="flex flex-col items-center gap-1 px-5 pt-6">
         <Link to="/about" className="flex h-11 items-center px-3 font-semibold text-pitch">

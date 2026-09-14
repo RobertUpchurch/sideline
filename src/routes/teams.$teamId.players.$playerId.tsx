@@ -1,18 +1,30 @@
 import { useMemo } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { playersQuery, seasonQuery, teamQuery } from '~/db/queries'
 import { seasonReport } from '~/engine/reports'
 import { formatClock, formatDate, formatDelta } from '~/lib/time'
-import { Card, EmptyState, List, Screen, SectionLabel, TopBar } from '~/components/ui'
+import {
+  Body,
+  Card,
+  EmptyState,
+  List,
+  Screen,
+  SectionLabel,
+  TopBar,
+} from '~/components/ui'
 
 export const Route = createFileRoute('/teams/$teamId/players/$playerId')({
-  loader: ({ context, params }) =>
-    Promise.all([
+  loader: async ({ context, params }) => {
+    const [team] = await Promise.all([
       context.queryClient.ensureQueryData(teamQuery(params.teamId)),
       context.queryClient.ensureQueryData(playersQuery(params.teamId)),
       context.queryClient.ensureQueryData(seasonQuery(params.teamId)),
-    ]),
+    ])
+    // Same for a team that has been deleted.
+    if (!team) throw notFound()
+    return team
+  },
   component: PlayerReport,
 })
 
@@ -50,7 +62,7 @@ function PlayerReport() {
         backLabel="Season"
       />
 
-      <main className="flex flex-1 flex-col gap-5 px-5 pt-1">
+      <Body className="gap-5 px-5 pt-1">
         {played.length === 0 ? (
           <EmptyState
             title={`No games for ${player.name} yet`}
@@ -152,7 +164,7 @@ function PlayerReport() {
             </div>
           </>
         )}
-      </main>
+      </Body>
     </Screen>
   )
 }

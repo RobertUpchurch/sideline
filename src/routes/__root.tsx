@@ -18,7 +18,7 @@ function Shell() {
 
 function NotFound() {
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[430px] flex-col items-center justify-center gap-4 px-8 text-center">
+    <div className="fixed inset-0 mx-auto flex max-w-[430px] flex-col items-center justify-center gap-4 px-8 text-center">
       <p className="cond text-[26px] font-bold">That page has wandered off</p>
       <p className="text-[15px] text-muted">
         Nothing is lost. Your teams and games are still on this phone.

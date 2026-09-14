@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import QRCode from 'qrcode'
-import { Button, CopyIcon, Screen, ShareIcon, TopBar } from '~/components/ui'
+import { Body, Button, CopyIcon, Screen, ShareIcon, TopBar } from '~/components/ui'
 
 export const Route = createFileRoute('/share')({
   component: Share,
@@ -76,7 +76,7 @@ function Share() {
     <Screen>
       <TopBar title="Share Sideline" back={{ to: '/' }} />
 
-      <main className="flex flex-1 flex-col items-center gap-5 px-5 pt-2">
+      <Body className="items-center gap-5 px-5 pt-2">
         <div className="flex flex-col gap-1.5 text-center">
           <h2 className="cond text-[30px] leading-none font-extrabold">
             Point a camera here
@@ -143,7 +143,7 @@ function Share() {
             and open source, so any league can host its own copy.
           </p>
         </div>
-      </main>
+      </Body>
     </Screen>
   )
 }

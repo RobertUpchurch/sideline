@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { haptic } from '~/lib/haptics'
 
 /**
  * The handful of primitives every screen is built from.
@@ -14,15 +15,55 @@ export function Screen({ children }: { children: ReactNode }) {
   return (
     <div
       /*
+       * A frame pinned to all four edges, rather than anything sized in `dvh`.
+       *
+       * `100dvh` is not dependable in an installed iOS app: with
+       * `viewport-fit=cover` it can resolve shorter than the screen actually
+       * is, which shows as a strip of bare background at the bottom that
+       * comes and goes as the keyboard or the toolbars move. An element at
+       * `inset: 0` always matches the visual viewport exactly, so there is no
+       * arithmetic to get wrong.
+       *
        * The safe area is the whole of the top padding on a phone, which is
        * what keeps the header clear of the Dynamic Island. The floor only
        * applies where there is no inset at all — a browser with its own
        * chrome, or a desktop — so it can be slight.
        */
-      className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-ground pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))]"
+      className="fixed inset-0 mx-auto flex w-full max-w-[430px] flex-col bg-ground pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))]"
     >
       {children}
     </div>
+  )
+}
+
+/**
+ * The part of a screen that scrolls, under a header that does not.
+ *
+ * The document itself never scrolls — see the note in `styles.css` — so the
+ * scrolling has to happen somewhere, and this is it. Two of these utilities
+ * are load-bearing rather than decorative: `min-h-0` is what allows a flex
+ * child to be shorter than its own content and therefore scroll at all
+ * (without it the region simply grows and the frame overflows), and
+ * `overscroll-contain` stops a flick that reaches the end of a list from
+ * being handed onwards to the page behind it.
+ *
+ * These are utilities on the element and not a class in the stylesheet on
+ * purpose: an unlayered rule would win over any `overflow-` utility a screen
+ * set on the same element, and the live game screen needs exactly that.
+ */
+export function Body({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <main
+      className={`flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain ${className}`}
+    >
+      {children}
+    </main>
   )
 }
 
@@ -93,6 +134,78 @@ export function List({ children }: { children: ReactNode }) {
         {children}
       </div>
     </Card>
+  )
+}
+
+/**
+ * A button that ticks under the thumb when it is pressed.
+ *
+ * It is a `<label>` wrapping a one-pixel checkbox because on iOS that is the
+ * only way to reach the Taptic engine from a web page: Safari plays the
+ * system haptic when a person toggles an `<input type="checkbox" switch>`,
+ * and there is no API that will do it on request. A tap anywhere in the
+ * label is a real activation of that switch, which is what earns the tick; a
+ * scripted `.click()` would get nothing. See `lib/haptics.ts`.
+ *
+ * The checkbox is never actually checked — these are momentary actions, not
+ * settings — so `checked` stays false and React resets it after every tap.
+ *
+ * Assistive technology is shown the label as a button and the input is hidden
+ * from it, because "goal for us" is an action and announcing it as a switch
+ * that is currently off would be a lie. That leaves the keyboard, which the
+ * label does not handle natively, so Enter and Space are wired up by hand.
+ *
+ * Everything visible belongs to the label. `children` is the real button.
+ */
+export function HapticButton({
+  label,
+  onTap,
+  disabled,
+  className = '',
+  children,
+}: {
+  label: string
+  onTap: () => void
+  disabled?: boolean
+  className?: string
+  children: ReactNode
+}) {
+  const fire = () => {
+    if (disabled) return
+    haptic()
+    onTap()
+  }
+
+  return (
+    <label
+      role="button"
+      aria-label={label}
+      aria-disabled={disabled}
+      tabIndex={disabled ? -1 : 0}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        fire()
+      }}
+      className={`relative ${disabled ? 'pointer-events-none' : ''} ${className}`}
+    >
+      <input
+        type="checkbox"
+        /*
+         * Not a React prop, and not something JSX will set for us. Without
+         * the `switch` attribute this is an ordinary checkbox and iOS stays
+         * silent.
+         */
+        ref={(el) => el?.setAttribute('switch', '')}
+        checked={false}
+        disabled={disabled}
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={fire}
+        className="pointer-events-none absolute size-px opacity-0"
+      />
+      {children}
+    </label>
   )
 }
 

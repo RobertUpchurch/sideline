@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { playersQuery, teamQuery, useCreateGame } from '~/db/queries'
 import { primeAudio } from '~/lib/alerts'
 import { fromDateInputValue, toDateInputValue } from '~/lib/time'
 import {
+  Body,
   Button,
   Card,
   CheckIcon,
@@ -20,11 +21,15 @@ import {
 } from '~/components/ui'
 
 export const Route = createFileRoute('/teams/$teamId/new-game')({
-  loader: ({ context, params }) =>
-    Promise.all([
+  loader: async ({ context, params }) => {
+    const [team] = await Promise.all([
       context.queryClient.ensureQueryData(teamQuery(params.teamId)),
       context.queryClient.ensureQueryData(playersQuery(params.teamId)),
-    ]),
+    ])
+    // Same for a team that has been deleted.
+    if (!team) throw notFound()
+    return team
+  },
   component: NewGame,
 })
 
@@ -105,7 +110,7 @@ function NewGame() {
     <Screen>
       <TopBar title="New game" back={{ to: '/' }} />
 
-      <main className="flex flex-1 flex-col gap-5 px-5 pt-1">
+      <Body className="gap-5 px-5 pt-1">
         <div className="flex flex-col gap-4">
           <Field label="Playing against">
             <input
@@ -230,7 +235,7 @@ function NewGame() {
               ? `Pick ${fieldSize - lineup.length} more`
               : 'Not enough players'}
         </Button>
-      </main>
+      </Body>
     </Screen>
   )
 }

@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { eventsQuery, gameQuery, playersQuery, useAppendEvent } from '~/db/queries'
 import { deriveClock } from '~/engine/clock'
@@ -13,17 +13,26 @@ import {
 } from '~/engine/fairness'
 import { useNow } from '~/lib/now'
 import { formatClock } from '~/lib/time'
-import { Button, Card, Screen, SectionLabel, SwapIcon, TopBar } from '~/components/ui'
+import {
+  Body,
+  Button,
+  Card,
+  Screen,
+  SectionLabel,
+  SwapIcon,
+  TopBar,
+} from '~/components/ui'
 
 export const Route = createFileRoute('/games/$gameId/fairness')({
   loader: async ({ context, params }) => {
     const game = await context.queryClient.ensureQueryData(gameQuery(params.gameId))
-    if (game) {
-      await Promise.all([
-        context.queryClient.ensureQueryData(eventsQuery(params.gameId)),
-        context.queryClient.ensureQueryData(playersQuery(game.teamId)),
-      ])
-    }
+    // A link to a game that has been deleted — a bookmark, or a forward
+    // swipe into history — should say so rather than render nothing.
+    if (!game) throw notFound()
+    await Promise.all([
+      context.queryClient.ensureQueryData(eventsQuery(params.gameId)),
+      context.queryClient.ensureQueryData(playersQuery(game.teamId)),
+    ])
     return game
   },
   component: Fairness,
@@ -68,7 +77,7 @@ function Fairness() {
     <Screen>
       <TopBar title="Fair time" back={{ to: '/games/$gameId', params: { gameId } }} backLabel="Game" />
 
-      <main className="flex flex-1 flex-col gap-5 px-5 pt-1">
+      <Body className="gap-5 px-5 pt-1">
         <Card className="flex flex-col gap-3.5 p-4">
           <div className="flex items-baseline justify-between">
             <h2 className="text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">
@@ -196,7 +205,7 @@ function Fairness() {
               ? 'This game is finished. These are the final minutes.'
               : 'There is enough time left to even this out completely.'}
         </p>
-      </main>
+      </Body>
     </Screen>
   )
 }

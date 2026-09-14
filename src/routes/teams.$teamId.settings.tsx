@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { teamQuery, useDeleteTeam, useUpdateTeam } from '~/db/queries'
 import { MAX_STOPPAGE_CHIPS, TEAM_COLORS } from '~/db/schema'
 import { backupFilename, exportTeam, offerFile } from '~/lib/transfer'
 import {
+  Body,
   Button,
   Card,
   CheckIcon,
@@ -17,8 +18,12 @@ import {
 import type { TeamSettings } from '~/engine/types'
 
 export const Route = createFileRoute('/teams/$teamId/settings')({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(teamQuery(params.teamId)),
+  loader: async ({ context, params }) => {
+    const team = await context.queryClient.ensureQueryData(teamQuery(params.teamId))
+    // Same for a team that has been deleted.
+    if (!team) throw notFound()
+    return team
+  },
   component: Settings,
 })
 
@@ -70,7 +75,7 @@ function Settings() {
     <Screen>
       <TopBar title="Team settings" back={{ to: '/' }} />
 
-      <main className="flex flex-1 flex-col gap-5 px-5 pt-1">
+      <Body className="gap-5 px-5 pt-1">
         <div className="flex flex-col gap-2">
           <SectionLabel>Team</SectionLabel>
           <Card className="flex flex-col gap-4 p-4">
@@ -225,7 +230,10 @@ function Settings() {
                   className="flex-1 !bg-loss"
                   onClick={async () => {
                     await deleteTeam.mutateAsync(teamId)
-                    await navigate({ to: '/' })
+                    // Replace, never push: this screen is about a team that
+                    // no longer exists, so leaving it in history means a
+                    // forward swipe lands on a blank screen.
+                    await navigate({ to: '/', replace: true })
                   }}
                 >
                   Delete
@@ -238,7 +246,7 @@ function Settings() {
             </Button>
           )}
         </div>
-      </main>
+      </Body>
     </Screen>
   )
 }

@@ -59,7 +59,7 @@ function NewTeam() {
     <Screen>
       <TopBar title="New team" back={{ to: '/' }} />
       <form
-        className="flex flex-1 flex-col gap-5 px-5 pt-1"
+        className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-5 pt-1"
         onSubmit={(event) => {
           event.preventDefault()
           void form.handleSubmit()

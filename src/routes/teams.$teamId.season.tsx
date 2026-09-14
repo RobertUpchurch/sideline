@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, notFound } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { playersQuery, seasonQuery, teamQuery } from '~/db/queries'
 import { seasonReport, seasonTotals, summarizeGame } from '~/engine/reports'
@@ -7,6 +7,7 @@ import { importTeam } from '~/lib/transfer'
 import { formatClock, formatDate, formatDelta } from '~/lib/time'
 import { DataTable, type Columns } from '~/components/DataTable'
 import {
+  Body,
   Button,
   Card,
   ChevronRightIcon,
@@ -19,12 +20,16 @@ import {
 } from '~/components/ui'
 
 export const Route = createFileRoute('/teams/$teamId/season')({
-  loader: ({ context, params }) =>
-    Promise.all([
+  loader: async ({ context, params }) => {
+    const [team] = await Promise.all([
       context.queryClient.ensureQueryData(teamQuery(params.teamId)),
       context.queryClient.ensureQueryData(playersQuery(params.teamId)),
       context.queryClient.ensureQueryData(seasonQuery(params.teamId)),
-    ]),
+    ])
+    // Same for a team that has been deleted.
+    if (!team) throw notFound()
+    return team
+  },
   component: Season,
 })
 
@@ -150,7 +155,7 @@ function Season() {
     <Screen>
       <TopBar title="Season" back={{ to: '/' }} />
 
-      <main className="flex flex-1 flex-col gap-4 px-5 pt-1">
+      <Body className="gap-4 px-5 pt-1">
         {finished.length === 0 ? (
           <EmptyState
             title="No finished games yet"
@@ -278,7 +283,7 @@ function Season() {
             </Button>
           </Card>
         </div>
-      </main>
+      </Body>
     </Screen>
   )
 }
